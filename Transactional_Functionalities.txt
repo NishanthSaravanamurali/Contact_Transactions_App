@@ -1,0 +1,49 @@
+Acccounts
+---------------
+
+accounts/addAccount --> a random balance is generated
+
+accounts/getBalance 
+
+accounts/getAccounts
+
+
+
+
+Wallet
+---------------
+wallet/addFunds(body must have accid,amount)
+	-first check the balance so that the amount is less than balance.
+	- begin transaction
+		- using the userId in token and the account id, get the 			  account.
+		- reduce amount from acc and add into wallet.
+		- if failed, rollback transaction else commit and call 			  transaction/new.
+
+wallet/makePayment (body must have sender and receiver userId,amount)
+	-first check the balance so that the amount is less than balance in 	 sender wallet.
+	- begin transaction
+		- using the userId in token, get the senders walletid.
+		- using the receivers user id in the body, retrive receiver 		  wallet id.
+		- reduce amount from sender wallet and add into receiver 		  wallet.
+		- if failed, rollback transaction else commit and call 			  transaction/new.
+	
+
+wallet/getBalance
+
+
+
+transaction
+-----------------
+
+
+transaction/new -----> using meta data of the api call identify if it is a 			A2W or W2W
+	
+	if A2w:
+		-Body will have account id, wallet id and amount
+		-We validate the userid from the token with that in the 		 wallet.
+
+transaction/getAll -> return all details inc id
+
+transacttion/getBasedOnConditions (body filter date/amount range/ src acc)
+
+transaction/get/{id}
