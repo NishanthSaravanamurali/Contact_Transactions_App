@@ -40,3 +40,30 @@ transaction/getAll -> return all details inc id
 transacttion/getBasedOnConditions (body filter date/amount range/ src acc)
 
 transaction/get/{id}
+
+
+
+
+
+
+
+A few contract decisions should be fixed now:
+addAccount:
+  User ID comes from JWT.
+  No userId in the request body.
+  Service generates opening balance.
+
+addFunds:
+  Request body: accountId, amount
+  User ID comes from JWT.
+  Destination wallet is the current user's wallet.
+  Transaction type: A2W.
+
+makePayment:
+  Request body: receiverUserId, amount
+  Do not accept senderUserId in the body.
+  Sender ID comes from JWT.
+  Transaction type: W2W.
+
+getAll / get/{id}:
+  Return only transactions visible to the authenticated user.
