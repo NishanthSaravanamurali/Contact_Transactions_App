@@ -11,7 +11,7 @@ import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
-//    We use @Query where the rule is more complex or needs to be very explicit.
+    //    We use @Query where the rule is more complex or needs to be very explicit.
 //    A transaction is visible only when the current user owns
 //    the source wallet or destination wallet.
 //    It could technically be expressed with a very long derived method name, such as:
@@ -20,10 +20,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query("""
             SELECT t
             FROM Transaction t
+            LEFT JOIN t.sourceWallet sw
+            JOIN t.destinationWallet dw
             WHERE t.transactionId = :transactionId
               AND (
-                    t.sourceWallet.userId = :userId
-                    OR t.destinationWallet.userId = :userId
+                    sw.userId = :userId
+                    OR dw.userId = :userId
                   )
             """)
     Optional<Transaction> findVisibleTransactionById(
@@ -36,12 +38,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 //    GET /transactions?page=0&size=20
 
     @Query("""
-            SELECT t
-            FROM Transaction t
-            WHERE t.sourceWallet.userId = :userId
-               OR t.destinationWallet.userId = :userId
-            ORDER BY t.createdAt DESC
-            """)
+        SELECT t
+        FROM Transaction t
+        LEFT JOIN t.sourceWallet sw
+        JOIN t.destinationWallet dw
+        WHERE sw.userId = :userId
+           OR dw.userId = :userId
+        ORDER BY t.createdAt DESC, t.transactionId DESC
+        """)
     Page<Transaction> findAllVisibleTransactions(
             @Param("userId") Long userId,
             Pageable pageable
