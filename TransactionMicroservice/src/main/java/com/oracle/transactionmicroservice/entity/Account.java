@@ -62,6 +62,10 @@ public class Account {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void debit(BigDecimal amount) {
+        this.balance = this.balance.subtract(amount);
+    }
+
     public Long getAccountId() {
         return accountId;
     }
