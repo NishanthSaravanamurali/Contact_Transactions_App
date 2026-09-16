@@ -1,63 +1,76 @@
 package com.oracle.transactionmicroservice.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table
+@Table(name = "wallet")
 public class Wallet {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "wallet_id")
-    private Integer walletId;
+    @Column(name = "wallet_id", nullable = false)
+    private Long walletId;
 
-    @Column(name = "user_id",nullable = false)
+    @Column(name = "user_id", nullable = false, unique = true)
     private Long userId;
 
-    @Column(name = "created_at",nullable = false)
-    private LocalDateTime created_at ;
+    @Column(name = "balance", nullable = false, precision = 20, scale = 2)
+    private BigDecimal balance;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updated_at;
+    private LocalDateTime updatedAt;
 
-    public Wallet() {
+    protected Wallet() {
+        // Required by JPA.
     }
 
     public Wallet(Long userId) {
         this.userId = userId;
-        
+        this.balance = new BigDecimal("0.00");
     }
 
-    public Integer getWalletId() {
+    @PrePersist
+    private void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    private void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public Long getWalletId() {
         return walletId;
-    }
-
-    public void setWalletId(Integer walletId) {
-        this.walletId = walletId;
     }
 
     public Long getUserId() {
         return userId;
     }
 
-    public void setUserId(Long userId) {
-        this.userId = userId;
+    public BigDecimal getBalance() {
+        return balance;
     }
 
-    public LocalDateTime getCreated_at() {
-        return created_at;
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
-    public void setCreated_at(LocalDateTime created_at) {
-        this.created_at = created_at;
-    }
-
-    public LocalDateTime getUpdated_at() {
-        return updated_at;
-    }
-
-    public void setUpdated_at(LocalDateTime updated_at) {
-        this.updated_at = updated_at;
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
     }
 }
