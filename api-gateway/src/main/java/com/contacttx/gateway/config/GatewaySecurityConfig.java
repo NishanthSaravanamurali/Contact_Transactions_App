@@ -53,6 +53,7 @@ public class GatewaySecurityConfig {
                         .pathMatchers(HttpMethod.POST, "/api/v1/auth/logout")
                         .authenticated()
                         .pathMatchers("/api/v1/users/**").authenticated()
+                        .pathMatchers("/api/v1/money/**").authenticated()
                         .anyExchange().denyAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .authenticationEntryPoint(errorHandler)
