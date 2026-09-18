@@ -1,5 +1,6 @@
 package com.oracle.transactionmicroservice.service.implementations;
-
+import com.oracle.transactionmicroservice.dto.response.WalletResponse;
+import org.springframework.transaction.annotation.Transactional;
 import com.oracle.transactionmicroservice.dto.request.AddFundsRequest;
 import com.oracle.transactionmicroservice.dto.request.MakePaymentRequest;
 import com.oracle.transactionmicroservice.dto.response.TransactionResponse;
@@ -100,6 +101,19 @@ public class WalletCommandServiceImpl implements WalletCommandService {
             return completed(transaction);
         });
     }
+    @Transactional
+    @Override
+    public WalletResponse createWallet(Long userId) {
+        ServiceSupport.requireCurrentUser(userId);
+
+        return walletRepository.findByUserId(userId)
+                .map(ServiceSupport::response)
+                .orElseGet(() -> {
+                    Wallet wallet = new Wallet(userId);
+                    return ServiceSupport.response(
+                            walletRepository.saveAndFlush(wallet)
+                    );
+                });    }
 
     private Wallet lockWallet(Long userId) {
         return walletRepository.findByUserIdForUpdate(userId)
