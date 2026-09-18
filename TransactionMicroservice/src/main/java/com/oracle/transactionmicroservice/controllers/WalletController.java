@@ -12,7 +12,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/wallet")
+@RequestMapping("/api/v1/money/wallet")
 public class WalletController {
 
     private final WalletCommandService walletCommandService;
