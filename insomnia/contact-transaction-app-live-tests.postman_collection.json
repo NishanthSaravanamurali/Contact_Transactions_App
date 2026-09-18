@@ -1,0 +1,2315 @@
+{
+  "info": {
+    "_postman_id": "b28db19f-7fc2-4c6a-9c0f-3b4f1a2c9e70",
+    "name": "Contact Transaction App - Live Tests",
+    "description": "Insomnia-compatible Postman v2.1 collection. Run folders in numeric order. Deactivation runs last. See docs/insomnia-live-test-plan.md for Oracle checks and explanations.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - Setup and Infrastructure",
+      "item": [
+        {
+          "name": "SETUP-01 Initialize Test Data and Check Gateway Health",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "const runId = Date.now().toString();",
+                  "const suffix = runId.slice(-9);",
+                  "const email = `gateway.insomnia.${runId}@example.com`;",
+                  "pm.collectionVariables.set('runId', runId);",
+                  "pm.collectionVariables.set('email', email);",
+                  "pm.collectionVariables.set('uppercaseEmail', email.toUpperCase());",
+                  "pm.collectionVariables.set('directEmail', `direct.insomnia.${runId}@example.com`);",
+                  "pm.collectionVariables.set('unknownEmail', `unknown.insomnia.${runId}@example.com`);",
+                  "pm.collectionVariables.set('normalizedEmail', `NORMALIZED.INSOMNIA.${runId}@EXAMPLE.COM`);",
+                  "pm.collectionVariables.set('mobileNo', `9${suffix}`);",
+                  "pm.collectionVariables.set('directMobileNo', `8${suffix}`);",
+                  "pm.collectionVariables.set('updatedMobileNo', `7${suffix}`);",
+                  "pm.collectionVariables.set('normalizedMobileNo', `6${suffix}`);",
+                  "pm.collectionVariables.set('userId', '');",
+                  "pm.collectionVariables.set('accessToken', '');",
+                  "pm.collectionVariables.set('tamperedToken', 'PASTE_A_MODIFIED_ACCESS_TOKEN_HERE');",
+                  "pm.collectionVariables.set('shortLivedToken', 'PASTE_A_SHORT_LIVED_TOKEN_HERE');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Gateway is UP\", function () { pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/actuator/health",
+            "description": "RUN THIS ONCE at the beginning of a complete test pass. It creates unique collection variables and clears prior tokens."
+          },
+          "response": []
+        },
+        {
+          "name": "INF-01 Discovery Server Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Discovery is UP\", function () { pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{eurekaUrl}}/actuator/health",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "INF-02 User Service Health Direct",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"User Service is UP\", function () { pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{userServiceUrl}}/actuator/health",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "INF-03 Gateway Health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Gateway is UP\", function () { pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/actuator/health",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "INF-04 Eureka Dashboard",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{eurekaUrl}}/",
+            "description": "Inspect the HTML response or open the URL in a browser. USER-SERVICE and API-GATEWAY must be UP."
+          },
+          "response": []
+        },
+        {
+          "name": "INF-05 Unknown Gateway Route Is Denied",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is one of 401, 403, 404\", function () { pm.expect([401,403,404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/not-a-real-route",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "INF-06 CORS Preflight",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is one of 200, 204\", function () { pm.expect([200,204]).to.include(pm.response.code); });",
+                  "pm.test(\"CORS origin is returned\", function () { pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.eql(pm.collectionVariables.get('corsOrigin')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{corsOrigin}}",
+                "type": "text"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "GET",
+                "type": "text"
+              },
+              {
+                "key": "Access-Control-Request-Headers",
+                "value": "Authorization,Content-Type",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": ""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "01 - Registration",
+      "item": [
+        {
+          "name": "REG-01 Direct Registration",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"Safe active response\", function () { const b=pm.response.json(); pm.expect(b.status).to.eql('ACTIVE'); pm.expect(b.email).to.eql(pm.collectionVariables.get('directEmail').toLowerCase()); pm.expect(b).not.to.have.property('password'); pm.expect(b).not.to.have.property('passwordHash'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{userServiceUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Direct Demo User\",\n  \"email\": \"{{directEmail}}\",\n  \"password\": \"{{password}}\",\n  \"mobileNo\": \"{{directMobileNo}}\",\n  \"dateOfBirth\": \"2000-06-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REG-02 Gateway Registration and Save User ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"Save active user\", function () { const b=pm.response.json(); pm.expect(b.status).to.eql('ACTIVE'); pm.expect(b).not.to.have.property('password'); pm.expect(b).not.to.have.property('passwordHash'); pm.collectionVariables.set('userId', String(b.userId)); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gateway Demo User\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"mobileNo\": \"{{mobileNo}}\",\n  \"dateOfBirth\": \"2000-06-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REG-03 Email Is Normalized",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"Email is lowercase\", function () { const b=pm.response.json(); pm.expect(b.email).to.eql(pm.collectionVariables.get('normalizedEmail').toLowerCase()); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Normalization User\",\n  \"email\": \"{{normalizedEmail}}\",\n  \"password\": \"{{password}}\",\n  \"mobileNo\": \"{{normalizedMobileNo}}\",\n  \"dateOfBirth\": \"2000-06-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REG-04 Duplicate Normalized Email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Error code is DUPLICATE_EMAIL\", function () { pm.expect(pm.response.json().code).to.eql(\"DUPLICATE_EMAIL\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Duplicate Demo User\",\n  \"email\": \"{{uppercaseEmail}}\",\n  \"password\": \"{{password}}\",\n  \"mobileNo\": \"{{updatedMobileNo}}\",\n  \"dateOfBirth\": \"2000-06-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REG-05 Missing Required Fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REG-06 Invalid Email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Invalid Email User\",\n  \"email\": \"not-an-email\",\n  \"password\": \"{{password}}\",\n  \"mobileNo\": \"{{updatedMobileNo}}\",\n  \"dateOfBirth\": \"2000-06-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REG-07 Weak Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Weak Password User\",\n  \"email\": \"weak.{{runId}}@example.com\",\n  \"password\": \"weakpassword\",\n  \"mobileNo\": \"{{updatedMobileNo}}\",\n  \"dateOfBirth\": \"2000-06-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REG-08 Invalid Mobile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Invalid Mobile User\",\n  \"email\": \"mobile.{{runId}}@example.com\",\n  \"password\": \"{{password}}\",\n  \"mobileNo\": \"1234567890\",\n  \"dateOfBirth\": \"2000-06-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REG-09 Underage User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Underage Demo User\",\n  \"email\": \"underage.{{runId}}@example.com\",\n  \"password\": \"{{password}}\",\n  \"mobileNo\": \"{{updatedMobileNo}}\",\n  \"dateOfBirth\": \"2012-06-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REG-10 Short Name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alex\",\n  \"email\": \"short.{{runId}}@example.com\",\n  \"password\": \"{{password}}\",\n  \"mobileNo\": \"{{updatedMobileNo}}\",\n  \"dateOfBirth\": \"2000-06-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REG-11 Malformed JSON",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Broken JSON\"",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Login and JWT",
+      "item": [
+        {
+          "name": "AUTH-01 Successful Login and Save Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Save bearer token\", function () { const b=pm.response.json(); pm.expect(b.tokenType).to.eql('Bearer'); pm.expect(b.expiresIn).to.eql(1800); pm.expect(b.accessToken).to.be.a('string').and.not.empty; pm.collectionVariables.set('accessToken', b.accessToken); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/login",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AUTH-02 Uppercase and Trimmed Email Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/login",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"  {{uppercaseEmail}}  \",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AUTH-03 Wrong Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Error code is INVALID_CREDENTIALS\", function () { pm.expect(pm.response.json().code).to.eql(\"INVALID_CREDENTIALS\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/login",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"Wrong@Password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AUTH-04 Unknown Email Same Generic Error",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Error code is INVALID_CREDENTIALS\", function () { pm.expect(pm.response.json().code).to.eql(\"INVALID_CREDENTIALS\"); });",
+                  "pm.test(\"Generic message\", function () { pm.expect(pm.response.json().message).to.eql('Invalid email or password'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/login",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{unknownEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AUTH-05 Missing Bearer Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Error code is UNAUTHORIZED\", function () { pm.expect(pm.response.json().code).to.eql(\"UNAUTHORIZED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "AUTH-06 Malformed Bearer Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer not-a-jwt",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "AUTH-07 Modified JWT Signature",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tamperedToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "Before sending, copy accessToken into tamperedToken and change one character after the second period."
+          },
+          "response": []
+        },
+        {
+          "name": "AUTH-08 Cannot Select Another User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is one of 403, 404\", function () { pm.expect([403,404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/999999",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "AUTH-09 Trace ID Echo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Trace header is preserved\", function () { pm.expect(pm.response.headers.get('X-Trace-Id')).to.eql('11111111-1111-1111-1111-111111111111'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Trace-Id",
+                "value": "11111111-1111-1111-1111-111111111111",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": ""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Profile",
+      "item": [
+        {
+          "name": "PROF-01 Read My Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Safe own profile\", function () { const b=pm.response.json(); pm.expect(String(b.userId)).to.eql(pm.collectionVariables.get('userId')); pm.expect(b.status).to.eql('ACTIVE'); pm.expect(b).not.to.have.property('password'); pm.expect(b).not.to.have.property('passwordHash'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "PROF-02 Update Name Only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Name changed\", function () { pm.expect(pm.response.json().name).to.eql('Gateway Demo Updated'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gateway Demo Updated\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PROF-03 Update Mobile Only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Mobile changed\", function () { pm.expect(pm.response.json().mobileNo).to.eql(pm.collectionVariables.get('updatedMobileNo')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNo\": \"{{updatedMobileNo}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PROF-04 Update Both Allowed Fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Both fields changed\", function () { const b=pm.response.json(); pm.expect(b.name).to.eql('Gateway Final Name'); pm.expect(b.mobileNo).to.eql(pm.collectionVariables.get('mobileNo')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gateway Final Name\",\n  \"mobileNo\": \"{{mobileNo}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PROF-05 Empty Update",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PROF-06 Protected Fields Cannot Change",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is one of 200, 400\", function () { pm.expect([200,400]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) { pm.test(\"Only permitted field changed\", function () { const b=pm.response.json(); pm.expect(b.name).to.eql('Allowed Name Change'); pm.expect(b.email).to.eql(pm.collectionVariables.get('email').toLowerCase()); pm.expect(b.status).to.eql('ACTIVE'); pm.expect(String(b.userId)).to.eql(pm.collectionVariables.get('userId')); }); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Allowed Name Change\",\n  \"email\": \"attacker@example.com\",\n  \"status\": \"DELETED\",\n  \"userId\": 999999,\n  \"passwordHash\": \"fake\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PROF-07 Invalid Name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alex\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PROF-08A Concurrent Update A (Advanced)",
+          "event": [],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "Send at the same time as PROF-08B. The race is timing-dependent in a manual client.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Concurrent Update A\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PROF-08B Concurrent Update B (Advanced)",
+          "event": [],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "Send at the same time as PROF-08A. Design expectation: one may return 409 CONCURRENT_UPDATE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Concurrent Update B\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Password and Logout",
+      "item": [
+        {
+          "name": "PASS-01 Weak New Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me/password",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{password}}\",\n  \"newPassword\": \"weakpassword\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PASS-02 Incorrect Current Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Error code is INVALID_CURRENT_PASSWORD\", function () { pm.expect(pm.response.json().code).to.eql(\"INVALID_CURRENT_PASSWORD\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me/password",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Wrong@Password123\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PASS-03 Successful Password Change",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me/password",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{password}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PASS-04 Old Password No Longer Works",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Error code is INVALID_CREDENTIALS\", function () { pm.expect(pm.response.json().code).to.eql(\"INVALID_CREDENTIALS\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/login",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PASS-05 New Password Works and Refreshes Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Save new token\", function () { const b=pm.response.json(); pm.expect(b.accessToken).to.be.a('string').and.not.empty; pm.collectionVariables.set('accessToken', b.accessToken); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/login",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "LOGOUT-01 Logout Without Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/v1/auth/logout",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "LOGOUT-02 Logout With Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/logout",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "LOGOUT-03 Token Still Works Until Expiry",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "V1 logout is stateless, so this 200 response is the documented behavior."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Internal APIs",
+      "item": [
+        {
+          "name": "INT-01 Status Without Internal Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is one of 401, 403\", function () { pm.expect([401,403]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{userServiceUrl}}/internal/v1/users/{{userId}}/status",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "INT-02 Status With Invalid Internal Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is one of 401, 403\", function () { pm.expect([401,403]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "wrong-token",
+                "type": "text"
+              }
+            ],
+            "url": "{{userServiceUrl}}/internal/v1/users/{{userId}}/status",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "INT-03 Status With Valid Internal Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Minimal active response\", function () { const b=pm.response.json(); pm.expect(String(b.userId)).to.eql(pm.collectionVariables.get('userId')); pm.expect(b.status).to.eql('ACTIVE'); pm.expect(Object.keys(b).sort()).to.eql(['status','userId']); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "{{internalServiceToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{userServiceUrl}}/internal/v1/users/{{userId}}/status",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "INT-04 Missing User Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Error code is USER_NOT_FOUND\", function () { pm.expect(pm.response.json().code).to.eql(\"USER_NOT_FOUND\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "{{internalServiceToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{userServiceUrl}}/internal/v1/users/999999999/status",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "INT-05 Resolve By Mobile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Resolved user\", function () { const b=pm.response.json(); pm.expect(String(b.userId)).to.eql(pm.collectionVariables.get('userId')); pm.expect(b.status).to.eql('ACTIVE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "{{internalServiceToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{userServiceUrl}}/internal/v1/users/resolve",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNo\": \"{{mobileNo}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "INT-06 Resolve Invalid Mobile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () { pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "{{internalServiceToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{userServiceUrl}}/internal/v1/users/resolve",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNo\": \"123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "INT-07 Resolve Unknown Mobile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Error code is USER_NOT_FOUND\", function () { pm.expect(pm.response.json().code).to.eql(\"USER_NOT_FOUND\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "{{internalServiceToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{userServiceUrl}}/internal/v1/users/resolve",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNo\": \"6999999999\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "INT-08 Internal Path Is Blocked At Gateway",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is one of 401, 403, 404\", function () { pm.expect([401,403,404]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "{{internalServiceToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/internal/v1/users/{{userId}}/status",
+            "description": ""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 - Expired JWT (Temporary Restart)",
+      "description": "Temporarily set User Service JWT_EXPIRY=PT1S, restart it, login with the new password, copy that token into shortLivedToken, wait at least 65 seconds, then run EXP-02. Restore PT30M afterward.",
+      "item": [
+        {
+          "name": "EXP-01 Create Short-Lived Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Token lifetime is one second\", function () { pm.expect(pm.response.json().expiresIn).to.eql(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/login",
+            "description": "Requires User Service JWT_EXPIRY=PT1S. Copy accessToken from the response into shortLivedToken.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "EXP-02 Expired Token Is Rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{shortLivedToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "Wait at least 65 seconds after EXP-01 before sending."
+          },
+          "response": []
+        },
+        {
+          "name": "EXP-03 Restore Normal Login and Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Save restored token\", function () { const b=pm.response.json(); pm.expect(b.expiresIn).to.eql(1800); pm.collectionVariables.set('accessToken', b.accessToken); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/login",
+            "description": "First restore User Service JWT_EXPIRY=PT30M and restart it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07 - Deactivation (Run Last)",
+      "item": [
+        {
+          "name": "DEACT-01 Deactivate Without JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "DEACT-02 Deactivate Authenticated User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "DEACT-03 Login After Deactivation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Error code is INACTIVE_USER\", function () { pm.expect(pm.response.json().code).to.eql(\"INACTIVE_USER\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/login",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DEACT-04 Existing Token Blocked By User Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Error code is INACTIVE_USER\", function () { pm.expect(pm.response.json().code).to.eql(\"INACTIVE_USER\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "DEACT-05 Internal Status Is Inactive",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"User is inactive\", function () { pm.expect(pm.response.json().status).to.eql('INACTIVE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "{{internalServiceToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{userServiceUrl}}/internal/v1/users/{{userId}}/status",
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "DEACT-06 Deactivate Again Is Rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Error code is INACTIVE_USER\", function () { pm.expect(pm.response.json().code).to.eql(\"INACTIVE_USER\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": ""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "08 - Optional Resilience",
+      "item": [
+        {
+          "name": "RES-01 User Service Unavailable",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is one of 502, 503\", function () { pm.expect([502,503]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/auth/login",
+            "description": "Stop User Service and wait for discovery state to update before sending. Restart User Service afterward.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "RES-02 Wrong Gateway Public Key Rejects JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "exec": [
+                  "pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{gatewayUrl}}/api/v1/users/me",
+            "description": "Temporarily configure Gateway with a different RSA public key and restart it before sending. Restore the correct key afterward."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "gatewayUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "userServiceUrl",
+      "value": "http://localhost:8081",
+      "type": "string"
+    },
+    {
+      "key": "eurekaUrl",
+      "value": "http://localhost:8761",
+      "type": "string"
+    },
+    {
+      "key": "corsOrigin",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "runId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "uppercaseEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "directEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unknownEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "normalizedEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "Strong@Password123",
+      "type": "string"
+    },
+    {
+      "key": "newPassword",
+      "value": "New@Password456",
+      "type": "string"
+    },
+    {
+      "key": "mobileNo",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "directMobileNo",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "updatedMobileNo",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "normalizedMobileNo",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tamperedToken",
+      "value": "PASTE_A_MODIFIED_ACCESS_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "shortLivedToken",
+      "value": "PASTE_A_SHORT_LIVED_TOKEN_HERE",
+      "type": "string"
+    },
+    {
+      "key": "internalServiceToken",
+      "value": "PASTE_INTERNAL_SERVICE_TOKEN_HERE",
+      "type": "string"
+    }
+  ]
+}
