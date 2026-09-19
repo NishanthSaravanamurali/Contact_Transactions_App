@@ -7,6 +7,7 @@ import com.contacttx.userservice.entity.UserStatus;
 import com.contacttx.userservice.exception.DuplicateEmailException;
 import com.contacttx.userservice.mapper.UserMapper;
 import com.contacttx.userservice.repository.AppUserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,14 +23,17 @@ public class UserRegistrationService {
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public UserRegistrationService(
             AppUserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            UserMapper userMapper) {
+            UserMapper userMapper,
+            ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userMapper = userMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -50,6 +54,7 @@ public class UserRegistrationService {
 
         try {
             AppUser savedUser = userRepository.saveAndFlush(user);
+            eventPublisher.publishEvent(new UserRegisteredEvent(savedUser.getUserId()));
             return userMapper.toRegistrationResponse(savedUser);
         } catch (DataIntegrityViolationException exception) {
             if (isDuplicateEmailViolation(exception)) {

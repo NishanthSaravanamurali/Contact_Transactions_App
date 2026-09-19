@@ -13,8 +13,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 
@@ -35,6 +37,9 @@ class UserRegistrationServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private UserRegistrationService registrationService;
 
     @BeforeEach
@@ -42,7 +47,8 @@ class UserRegistrationServiceTest {
         registrationService = new UserRegistrationService(
                 userRepository,
                 passwordEncoder,
-                new UserMapper());
+                new UserMapper(),
+                eventPublisher);
     }
 
     @Test
@@ -51,13 +57,20 @@ class UserRegistrationServiceTest {
         when(userRepository.existsByEmail("alex@example.com")).thenReturn(false);
         when(passwordEncoder.encode("Strong@Password123")).thenReturn("argon2-hash");
         when(userRepository.saveAndFlush(any(AppUser.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+                .thenAnswer(invocation -> {
+                    AppUser user = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(user, "userId", 42L);
+                    return user;
+                });
 
         RegistrationResponse response = registrationService.register(request);
 
         ArgumentCaptor<AppUser> userCaptor = ArgumentCaptor.forClass(AppUser.class);
         verify(userRepository).saveAndFlush(userCaptor.capture());
         AppUser savedUser = userCaptor.getValue();
+        ArgumentCaptor<UserRegisteredEvent> eventCaptor =
+                ArgumentCaptor.forClass(UserRegisteredEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
 
         assertEquals("alex@example.com", savedUser.getEmail());
         assertEquals("argon2-hash", savedUser.getPasswordHash());
@@ -65,6 +78,7 @@ class UserRegistrationServiceTest {
         assertEquals(UserStatus.ACTIVE, savedUser.getStatus());
         assertEquals("alex@example.com", response.getEmail());
         assertEquals(UserStatus.ACTIVE, response.getStatus());
+        assertEquals(42L, eventCaptor.getValue().getUserId());
     }
 
     @Test
