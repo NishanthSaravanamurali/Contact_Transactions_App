@@ -72,7 +72,7 @@ are returned.
 ## Resolve a user by mobile number
 
 ```http
-POST /internal/v1/users/resolvex
+POST /internal/v1/users/resolve
 X-Internal-Service-Token: <service-token>
 Content-Type: application/json
 ```
