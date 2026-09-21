@@ -16,7 +16,9 @@ public final class RsaPublicKeyParser {
         }
 
         try {
-            String base64Key = pemValue
+            String normalizedPem = pemValue.replace("\\n", "\n");
+
+            String base64Key = normalizedPem
                     .replace("-----BEGIN PUBLIC KEY-----", "")
                     .replace("-----END PUBLIC KEY-----", "")
                     .replaceAll("\\s", "");
