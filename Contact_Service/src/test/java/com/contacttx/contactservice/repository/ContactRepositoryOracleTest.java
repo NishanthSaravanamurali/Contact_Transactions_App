@@ -75,6 +75,23 @@ class ContactRepositoryOracleTest {
     }
 
     @Test
+    void findsRegisteredLinksByOwnerAndLinkedUser() {
+        Long linkedUserId = 9_000_000_003L;
+        contactRepository.save(new Contact(
+                OWNER_ID,
+                linkedUserId,
+                "Registered Contact",
+                9_123_456_789L
+        ));
+        entityManager.flush();
+
+        assertThat(contactRepository.existsByOwnerUserIdAndLinkedUserId(OWNER_ID, linkedUserId))
+                .isTrue();
+        assertThat(contactRepository.existsByOwnerUserIdAndLinkedUserId(OTHER_OWNER_ID, linkedUserId))
+                .isFalse();
+    }
+
+    @Test
     void rejectsSelfLinkingWithTheOracleCheckConstraint() {
         Contact selfLinkedContact = new Contact(
                 OWNER_ID,

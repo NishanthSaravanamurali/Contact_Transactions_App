@@ -10,7 +10,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         "spring.autoconfigure.exclude="
                 + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration",
         "eureka.client.enabled=false",
-        "spring.cloud.discovery.enabled=false"
+        "spring.cloud.discovery.enabled=false",
+        "contact-service.user-service.internal-token=test-internal-token",
+        "contact-service.internal.service-token=test-internal-token"
 })
 class ContactServiceApplicationTests {
 

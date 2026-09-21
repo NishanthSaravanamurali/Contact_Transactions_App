@@ -50,6 +50,36 @@ and authenticated `owner_user_id`. A contact owned by another user returns
 `404 Not Found`, exactly like a missing contact, so ownership information is not
 disclosed.
 
+## Internal payment eligibility
+
+```http
+POST /internal/v1/contacts/payment-eligibility
+X-Internal-Service-Token: <INTERNAL_SERVICE_TOKEN>
+Content-Type: application/json
+```
+
+```json
+{
+  "senderUserId": 42,
+  "receiverUserId": 99
+}
+```
+
+This is an internal service-to-service endpoint. It is not a public Contact API,
+must not be routed through API Gateway, and does not accept a user JWT.
+
+It returns `allowed: true` only when the sender owns a registered contact linked
+to the receiver and User Service currently reports that receiver as `ACTIVE`.
+Self-payments, external contacts, missing links, unknown users, and inactive
+users return `allowed: false`. If User Service cannot be reached safely, the
+endpoint returns `503 USER_SERVICE_UNAVAILABLE`.
+
+```json
+{
+  "allowed": true
+}
+```
+
 ## Contact response
 
 The public contact representation is:

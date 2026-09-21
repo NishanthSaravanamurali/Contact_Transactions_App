@@ -16,6 +16,7 @@ class AuthenticatedUserIdResolverTest {
     @Test
     void resolvesPositiveNumericJwtSubject() {
         JwtAuthenticationToken authentication = new JwtAuthenticationToken(jwtWithSubject("101"));
+        authentication.setAuthenticated(true);
 
         assertEquals(101L, resolver.resolve(authentication));
     }

@@ -254,12 +254,22 @@ Contact Service. Gateway routing remains an external prerequisite.
 
 ## Money Service boundary
 
-Contact Service currently has no direct Money Service integration.
+Transaction Service may synchronously check contact eligibility through:
+
+```http
+POST /internal/v1/contacts/payment-eligibility
+X-Internal-Service-Token: <INTERNAL_SERVICE_TOKEN>
+```
+
+The request contains `senderUserId` and `receiverUserId`. Contact Service
+returns `allowed: true` only if the sender owns a contact linked to the receiver
+and the receiver is currently `ACTIVE` in User Service. This endpoint is
+read-only and must not be published by API Gateway.
 
 Contact data must not be used to mutate accounts, wallets, balances, or
-transactions. Money Service must not access `SYSTEM.CONTACT`. If a future use
-case requires communication, it must use an explicit service API contract and
-must not introduce a cross-schema foreign key.
+transactions. Transaction Service must not access `SYSTEM.CONTACT` directly;
+it must use this explicit service API contract and must not introduce a
+cross-schema foreign key.
 
 ## Trace propagation
 
