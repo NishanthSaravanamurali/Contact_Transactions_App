@@ -45,6 +45,8 @@ Set these on the `UserServiceApplication` run configuration:
 | `INTERNAL_SERVICE_TOKEN` | Shared random secret for internal service calls |
 | `TRANSACTION_SERVICE_URL` | Optional; default is `http://TRANSACTIONMICROSERVICE` |
 | `EUREKA_URL` | Optional; default is `http://localhost:8761/eureka/` |
+| `EUREKA_PREFER_IP_ADDRESS` | Optional; defaults to `true` for reliable local discovery |
+| `EUREKA_INSTANCE_IP` | Optional; defaults to `127.0.0.1` for the local single-machine setup |
 
 For multiline RSA values, IntelliJ may store actual line breaks or literal `\n`
 sequences. The application accepts both forms. Do not put either key in
@@ -61,6 +63,12 @@ Set these on the `ApiGatewayApplication` run configuration:
 | `CORS_ALLOWED_ORIGINS` | Comma-separated browser origins, such as `http://localhost:3000` |
 
 The Gateway must not receive the JWT private key or database credentials.
+
+For the local setup, User Service advertises `127.0.0.1` to Eureka. This avoids
+Windows hostnames such as `computer-name.mshome.net` that the reactive Gateway DNS
+resolver may not be able to resolve. In a deployed environment, set
+`EUREKA_INSTANCE_IP` to the address reachable by other service instances, or
+override the instance-advertisement settings for that environment.
 
 ### Discovery Server
 
