@@ -14,6 +14,7 @@ import java.util.function.Supplier;
 public class UserServiceOperationGuard implements UserOperationGuard {
 
     private final RestClient userServiceClient;
+    private final RestClient contactServiceClient;
     private final String internalServiceToken;
 
     public UserServiceOperationGuard(
@@ -23,11 +24,18 @@ public class UserServiceOperationGuard implements UserOperationGuard {
             @Value("${integration.user-service.service-id}")
             String userServiceId,
 
+            @Value("${integration.contact-service.service-id}")
+            String contactServiceId,
+
             @Value("${integration.user-service.internal-token}")
             String internalServiceToken
     ) {
         if (userServiceId == null || userServiceId.isBlank()) {
             throw new IllegalStateException("User Service ID is not configured.");
+        }
+
+        if (contactServiceId == null || contactServiceId.isBlank()) {
+            throw new IllegalStateException("Contact Service ID is not configured.");
         }
 
         if (internalServiceToken == null || internalServiceToken.isBlank()) {
@@ -36,6 +44,10 @@ public class UserServiceOperationGuard implements UserOperationGuard {
 
         this.userServiceClient = restClientBuilder
                 .baseUrl("http://" + userServiceId)
+                .build();
+
+        this.contactServiceClient = restClientBuilder
+                .baseUrl("http://" + contactServiceId)
                 .build();
 
         this.internalServiceToken = internalServiceToken;
@@ -51,6 +63,7 @@ public class UserServiceOperationGuard implements UserOperationGuard {
 
         if (recipientUserId != null) {
             requireActiveUser(recipientUserId);
+            requireReceiverIsContact(currentUserId, recipientUserId);
         }
 
         return action.get();
@@ -78,10 +91,39 @@ public class UserServiceOperationGuard implements UserOperationGuard {
         }
     }
 
-    /*
-     * Confirm this matches the actual JSON returned by User Service.
-     * Expected example: { "status": "ACTIVE" }
-     */
+    private void requireReceiverIsContact(
+            Long senderUserId,
+            Long receiverUserId
+    ) {
+        try {
+            PaymentEligibilityResponse response = contactServiceClient.post()
+                    .uri("/internal/v1/contacts/payment-eligibility")
+                    .header("X-Internal-Service-Token", internalServiceToken)
+                    .body(new PaymentEligibilityRequest(senderUserId, receiverUserId))
+                    .retrieve()
+                    .body(PaymentEligibilityResponse.class);
+
+            if (response == null || !response.allowed()) {
+                throw new ForbiddenOperationException(
+                        "Receiver is not an eligible contact."
+                );
+            }
+        } catch (RestClientException exception) {
+            throw new ForbiddenOperationException(
+                    "Unable to verify the receiver's contact eligibility."
+            );
+        }
+    }
+
     private record UserStatusResponse(String status) {
+    }
+
+    private record PaymentEligibilityRequest(
+            Long senderUserId,
+            Long receiverUserId
+    ) {
+    }
+
+    private record PaymentEligibilityResponse(boolean allowed) {
     }
 }
