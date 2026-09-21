@@ -43,6 +43,7 @@ Set these on the `UserServiceApplication` run configuration:
 | `JWT_PUBLIC_KEY` | Matching X.509 RSA public key used to validate tokens |
 | `JWT_EXPIRY` | Optional ISO-8601 duration; default is `PT30M` |
 | `INTERNAL_SERVICE_TOKEN` | Shared random secret for internal service calls |
+| `TRANSACTION_SERVICE_URL` | Optional; default is `http://TRANSACTIONMICROSERVICE` |
 | `EUREKA_URL` | Optional; default is `http://localhost:8761/eureka/` |
 
 For multiline RSA values, IntelliJ may store actual line breaks or literal `\n`
@@ -76,9 +77,9 @@ $internalTokenBytes = New-Object byte[] 32
 ```
 
 Copy the resulting value into `INTERNAL_SERVICE_TOKEN` for User Service. Contact
-Service and Money Service must send that same value in the
-`X-Internal-Service-Token` request header. Never send it to a browser or route it
-through the public Gateway.
+Service and Money/Transaction Service must configure the same value. Calls in
+either direction send it in the `X-Internal-Service-Token` request header. Never
+send it to a browser or route it through the public Gateway.
 
 ## Oracle prerequisite
 

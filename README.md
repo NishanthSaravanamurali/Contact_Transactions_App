@@ -32,6 +32,7 @@ The Gateway discovers `USER-SERVICE` through Eureka and routes:
 - Stateless logout
 - Soft account deactivation (`ACTIVE` to `INACTIVE`)
 - Internal status and mobile-resolution APIs protected by a shared service token
+- Post-commit wallet-creation request to Transaction Service
 - Eureka registration and load-balanced Gateway routing
 - Central Gateway CORS and trace-ID forwarding
 - Consistent controller-level API errors
@@ -75,6 +76,7 @@ The Eureka dashboard should show both `USER-SERVICE` and `API-GATEWAY`.
 
 ## Documentation
 
+- [Implemented services and service-class guide](docs/implemented-services-guide.md)
 - [Public API contracts](docs/api-contracts.md)
 - [Contact and Money Service integration contracts](docs/integration-contracts.md)
 - [JWT integration for Contact and Transaction Services](docs/jwt-integration.md)
