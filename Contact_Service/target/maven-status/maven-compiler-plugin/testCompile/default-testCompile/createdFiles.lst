@@ -1,9 +1,0 @@
-com\contacttx\contactservice\exception\GlobalExceptionHandlerTest.class
-com\contacttx\contactservice\client\UserServiceClientTest.class
-com\contacttx\contactservice\ContactServiceApplicationTests.class
-com\contacttx\contactservice\service\ContactServiceTest.class
-com\contacttx\contactservice\dto\request\ContactRequestValidationTest.class
-com\contacttx\contactservice\repository\ContactRepositoryOracleTest.class
-com\contacttx\contactservice\config\TraceIdFilterTest.class
-com\contacttx\contactservice\exception\GlobalExceptionHandlerTest$ErrorTestController.class
-com\contacttx\contactservice\mapper\ContactMapperTest.class
