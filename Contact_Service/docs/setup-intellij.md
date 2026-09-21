@@ -190,6 +190,7 @@ DB_USERNAME=SYSTEM
 DB_PASSWORD=<your local password>
 EUREKA_URL=http://localhost:8761/eureka/
 USER_SERVICE_INTERNAL_TOKEN=<shared internal token>
+INTERNAL_SERVICE_TOKEN=<shared token accepted from Transaction Service>
 ```
 
 Do not add quotes around values in IntelliJ's environment-variable editor

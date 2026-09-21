@@ -2,6 +2,7 @@ package com.contacttx.contactservice.service;
 
 import com.contacttx.contactservice.client.UserServiceClient;
 import com.contacttx.contactservice.client.dto.ResolveUserResponse;
+import com.contacttx.contactservice.client.dto.UserStatusResponse;
 import com.contacttx.contactservice.dto.request.CreateContactRequest;
 import com.contacttx.contactservice.dto.request.UpdateContactRequest;
 import com.contacttx.contactservice.dto.response.ContactResponse;
@@ -100,6 +101,22 @@ public class ContactService {
         if (deletedCount == 0) {
             throw new ContactNotFoundException();
         }
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isPaymentEligible(Long senderUserId, Long receiverUserId) {
+        if (senderUserId.equals(receiverUserId)
+                || !contactRepository.existsByOwnerUserIdAndLinkedUserId(
+                        senderUserId,
+                        receiverUserId)) {
+            return false;
+        }
+
+        return userServiceClient.getUserStatus(receiverUserId)
+                .filter(response -> receiverUserId.equals(response.getUserId()))
+                .map(UserStatusResponse::getStatus)
+                .map(ACTIVE_STATUS::equals)
+                .orElse(false);
     }
 
     private Contact findOwnedContact(Long ownerUserId, Long contactId) {

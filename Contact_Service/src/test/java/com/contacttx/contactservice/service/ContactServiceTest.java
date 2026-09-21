@@ -2,6 +2,7 @@ package com.contacttx.contactservice.service;
 
 import com.contacttx.contactservice.client.UserServiceClient;
 import com.contacttx.contactservice.client.dto.ResolveUserResponse;
+import com.contacttx.contactservice.client.dto.UserStatusResponse;
 import com.contacttx.contactservice.dto.request.CreateContactRequest;
 import com.contacttx.contactservice.dto.request.UpdateContactRequest;
 import com.contacttx.contactservice.dto.response.ContactResponse;
@@ -309,6 +310,44 @@ class ContactServiceTest {
         );
 
         assertInstanceOf(ContactNotFoundException.class, thrown);
+    }
+
+    @Test
+    void paymentIsEligibleForAnActiveLinkedContact() {
+        Long receiverUserId = 202L;
+        when(contactRepository.existsByOwnerUserIdAndLinkedUserId(OWNER_USER_ID, receiverUserId))
+                .thenReturn(true);
+        when(userServiceClient.getUserStatus(receiverUserId))
+                .thenReturn(Optional.of(new UserStatusResponse(receiverUserId, "ACTIVE")));
+
+        assertTrue(contactService.isPaymentEligible(OWNER_USER_ID, receiverUserId));
+    }
+
+    @Test
+    void paymentIsNotEligibleWithoutARegisteredLinkedContact() {
+        Long receiverUserId = 202L;
+        when(contactRepository.existsByOwnerUserIdAndLinkedUserId(OWNER_USER_ID, receiverUserId))
+                .thenReturn(false);
+
+        assertFalse(contactService.isPaymentEligible(OWNER_USER_ID, receiverUserId));
+        verifyNoInteractions(userServiceClient);
+    }
+
+    @Test
+    void paymentIsNotEligibleWhenTheLinkedUserIsInactive() {
+        Long receiverUserId = 202L;
+        when(contactRepository.existsByOwnerUserIdAndLinkedUserId(OWNER_USER_ID, receiverUserId))
+                .thenReturn(true);
+        when(userServiceClient.getUserStatus(receiverUserId))
+                .thenReturn(Optional.of(new UserStatusResponse(receiverUserId, "INACTIVE")));
+
+        assertFalse(contactService.isPaymentEligible(OWNER_USER_ID, receiverUserId));
+    }
+
+    @Test
+    void paymentIsNotEligibleForTheSameUser() {
+        assertFalse(contactService.isPaymentEligible(OWNER_USER_ID, OWNER_USER_ID));
+        verifyNoInteractions(contactRepository, userServiceClient);
     }
 
     private CreateContactRequest linkedCreateRequest() {
