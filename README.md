@@ -32,18 +32,20 @@ The Gateway discovers `USER-SERVICE` through Eureka and routes:
 - Stateless logout
 - Soft account deactivation (`ACTIVE` to `INACTIVE`)
 - Internal status and mobile-resolution APIs protected by a shared service token
-- Post-commit wallet-creation request to Transaction Service
+- Transactional `UserRegistered` outbox rows committed with user registration
+- Scheduled Kafka publication to `user.lifecycle.v1` with failure retry state
 - Eureka registration and load-balanced Gateway routing
 - Central Gateway CORS and trace-ID forwarding
 - Consistent controller-level API errors
 
-Kafka, transactional outbox publishing, Flyway, OpenAPI, Swagger, Contact Service,
-and Money Service are intentionally outside this version.
+Flyway, OpenAPI, and Swagger are intentionally outside this version. The
+`APP_USER` and `OUTBOX_EVENT` tables are maintained manually in Oracle.
 
 ## Prerequisites
 
 - JDK 24
-- Oracle Database with the manually created `SYSTEM.APP_USER` table
+- Oracle Database with the manually created `APP_USER` and `OUTBOX_EVENT` tables
+- Kafka reachable through `KAFKA_BOOTSTRAP_SERVERS`
 - Maven Wrapper supplied by this repository
 - An RSA private/public key pair supplied through environment variables
 
@@ -109,6 +111,7 @@ The Eureka dashboard should show both `USER-SERVICE` and `API-GATEWAY`.
 - [Implemented services and service-class guide](docs/implemented-services-guide.md)
 - [Public API contracts](docs/api-contracts.md)
 - [Contact and Money Service integration contracts](docs/integration-contracts.md)
+- [Transaction Service Kafka integration](docs/transaction-service-kafka-integration.md)
 - [JWT integration for Contact and Transaction Services](docs/jwt-integration.md)
 - [IntelliJ and environment setup](docs/setup-intellij.md)
 - [Live Gateway demonstration](docs/live-gateway-demo.md)

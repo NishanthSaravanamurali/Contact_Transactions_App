@@ -43,7 +43,12 @@ Set these on the `UserServiceApplication` run configuration:
 | `JWT_PUBLIC_KEY` | Matching X.509 RSA public key used to validate tokens |
 | `JWT_EXPIRY` | Optional ISO-8601 duration; default is `PT30M` |
 | `INTERNAL_SERVICE_TOKEN` | Shared random secret for internal service calls |
-| `TRANSACTION_SERVICE_URL` | Optional; default is `http://TRANSACTIONMICROSERVICE` |
+| `KAFKA_BOOTSTRAP_SERVERS` | Optional; default is `localhost:9092` |
+| `KAFKA_USER_LIFECYCLE_TOPIC` | Optional; default is `user.lifecycle.v1` |
+| `OUTBOX_BATCH_SIZE` | Optional; default is `50` |
+| `OUTBOX_INITIAL_DELAY_MS` | Optional; default is `5000` |
+| `OUTBOX_POLL_INTERVAL_MS` | Optional; default is `5000` |
+| `OUTBOX_SEND_TIMEOUT` | Optional ISO-8601 duration; default is `PT10S` |
 | `EUREKA_URL` | Optional; default is `http://localhost:8761/eureka/` |
 | `EUREKA_PREFER_IP_ADDRESS` | Optional; defaults to `true` for reliable local discovery |
 | `EUREKA_INSTANCE_IP` | Optional; defaults to `127.0.0.1` for the local single-machine setup |
@@ -91,10 +96,10 @@ send it to a browser or route it through the public Gateway.
 
 ## Oracle prerequisite
 
-This version does not run Flyway. The `APP_USER` table, constraints, indexes, and
-update trigger must already exist in the Oracle account configured by
-`DB_USERNAME`. Hibernate uses `ddl-auto=validate`; it checks mappings but does not
-create or alter the table.
+This version does not run Flyway. The `APP_USER` and `OUTBOX_EVENT` tables,
+constraints, indexes, and the existing user update trigger must already exist in
+the Oracle account configured by `DB_USERNAME`. Hibernate uses
+`ddl-auto=validate`; it checks mappings but does not create or alter either table.
 
 The implemented mapping expects:
 
@@ -112,6 +117,24 @@ UPDATED_AT    TIMESTAMP not null
 
 The existing update trigger must refresh `UPDATED_AT`; the service uses that
 timestamp to detect concurrent changes.
+
+The existing outbox mapping expects exactly:
+
+```text
+EVENT_ID        VARCHAR2(36) primary key
+EVENT_TYPE      VARCHAR2(100)
+AGGREGATE_ID    NUMBER(19)
+PAYLOAD         CLOB
+CREATED_AT      TIMESTAMP
+PUBLISHED_AT    TIMESTAMP nullable
+PUBLISH_ATTEMPTS NUMBER
+LAST_ERROR      VARCHAR2(1000) nullable
+```
+
+Do not ask Hibernate to create this table and do not add a Flyway migration for
+it. Ensure Kafka and the `user.lifecycle.v1` topic are available before testing
+publication. Kafka downtime does not prevent registration; it leaves the outbox
+row unpublished for a later scheduled retry.
 
 ## Starting the platform
 

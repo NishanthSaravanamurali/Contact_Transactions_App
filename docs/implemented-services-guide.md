@@ -56,7 +56,8 @@ Implemented responsibilities:
 - Performs stateless logout.
 - Deactivates accounts by changing `ACTIVE` to `INACTIVE`.
 - Provides internal status and mobile-resolution APIs.
-- Requests wallet creation after a new user transaction commits.
+- Commits a `UserRegistered` outbox row with every new user.
+- Publishes pending outbox rows to Kafka topic `user.lifecycle.v1`.
 - Registers with Eureka and exposes Actuator health information.
 
 ## Endpoint-to-service mapping
@@ -96,8 +97,9 @@ What `register(...)` does:
 4. Constructs an `ACTIVE` `AppUser`.
 5. Saves and flushes it to Oracle.
 6. Translates an Oracle unique-constraint race into `DuplicateEmailException`.
-7. Publishes `UserRegisteredEvent` with the generated numeric user ID.
-8. Maps the entity to a safe `RegistrationResponse`.
+7. Creates a safe `UserRegistered` JSON envelope.
+8. Saves that envelope as a pending `OUTBOX_EVENT` row.
+9. Maps the entity to a safe `RegistrationResponse`.
 
 Important annotation:
 
@@ -105,16 +107,17 @@ Important annotation:
 @Transactional
 ```
 
-All database work succeeds or rolls back as one transaction. The event is
-published while this transaction is active, but the wallet listener does not run
-until the transaction commits.
+The `APP_USER` insert and `OUTBOX_EVENT` insert succeed or roll back as one Oracle
+transaction. Registration never waits for Kafka and does not call Transaction
+Service over REST.
 
 Dependencies:
 
 - `AppUserRepository` for persistence and uniqueness checks.
+- `OutboxEventRepository` for atomic outbox persistence.
 - `PasswordEncoder` for Argon2id hashing.
 - `UserMapper` for the safe response DTO.
-- `ApplicationEventPublisher` for the post-commit wallet workflow.
+- `OutboxEventFactory` for the safe event envelope.
 
 ### `AuthenticationService.java`
 
@@ -193,98 +196,66 @@ information.
 Mobile numbers are currently indexed but not unique. If duplicates exist,
 resolution returns the matching row with the smallest user ID.
 
-### `UserRegisteredEvent.java`
+## Files in the User Service messaging package
 
-Purpose: carries the newly committed account's `userId` from registration to the
-wallet-provisioning listener.
+Location:
 
-This is an in-process Spring application event. It is not a Kafka event and is not
-stored in an outbox table. Its only field is the numeric user ID.
-
-### `WalletProvisioningListener.java`
-
-Purpose: starts wallet creation only after the Oracle user transaction commits.
-
-Important annotation:
-
-```java
-@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+```text
+user-service/src/main/java/com/contacttx/userservice/messaging
 ```
 
-Consequences:
+### `OutboxEventFactory.java`
 
-- A rolled-back registration never calls Transaction Service.
-- Transaction Service can call the User Service status endpoint and find the
-  committed user.
-- The remote call does not hold the Oracle registration transaction open.
+Creates a UUID event ID and a safe `UserRegistered` JSON envelope containing only
+event metadata and the numeric user ID. It never includes email, mobile number,
+password information, or JWTs.
 
-The listener catches remote runtime failures. Therefore a Transaction Service
-outage cannot roll back a committed user or change the registration response into
-a misleading failure. It logs only the safe user ID.
+### `OutboxPublicationService.java`
 
-Because Kafka and an outbox are excluded, a failed request is not durably queued.
-The wallet must later be retried operationally or created when the user first uses
-a wallet operation.
+Runs one transactional publication batch. It locks the oldest unpublished rows,
+publishes each JSON payload to `user.lifecycle.v1` using the user ID as the Kafka
+key, and waits for Kafka acknowledgement.
 
-### `TransactionWalletClient.java`
+- Success sets `published_at` and clears `last_error`.
+- Failure increments `publish_attempts`, stores a maximum 1000-character error,
+  and leaves `published_at` null.
+- Pending rows are selected with a pessimistic lock and skip-locked timeout so
+  concurrent publisher instances do not intentionally process the same locked
+  row.
 
-Purpose: performs the outbound HTTP request to Money/Transaction Service.
+### `OutboxPublisher.java`
 
-It sends:
+The scheduled entry point. It invokes `OutboxPublicationService` after the
+configured initial delay and then after each configured fixed delay.
 
-```http
-POST /internal/v1/wallets
-X-Internal-Service-Token: <shared-token>
-Content-Type: application/json
-```
+### `OutboxEvent.java`
 
-```json
-{
-  "userId": 1
-}
-```
+This JPA entity is under the `entity` package and maps the already-created Oracle
+`OUTBOX_EVENT` table exactly. Hibernate validates the table but does not create or
+modify it.
 
-The client uses the configured base URL:
-
-```properties
-integration.transaction-service.base-url=${TRANSACTION_SERVICE_URL:http://TRANSACTIONMICROSERVICE}
-```
-
-Its `RestClient.Builder` is marked `@LoadBalanced`, so the default logical host is
-resolved through Eureka. `TRANSACTIONMICROSERVICE` must exactly match the
-Transaction Service's `spring.application.name`.
-
-The same `INTERNAL_SERVICE_TOKEN` must be configured in both services. The token
-authenticates the calling service; the body identifies the user whose wallet must
-be created.
-
-### `CreateWalletRequest.java`
-
-This DTO is physically located under `dto/request`, not `service`, but it belongs
-to the wallet workflow. It intentionally contains only `userId`. User Service does
-not send user profile data, passwords, JWTs, balances, or account information to
-Transaction Service.
-
-## Registration and wallet sequence
+## Registration and Kafka sequence
 
 ```text
 Client
   -> AuthController
   -> UserRegistrationService
   -> Oracle APP_USER insert
-  -> UserRegisteredEvent published
-  -> Oracle commit
-  -> WalletProvisioningListener
-  -> TransactionWalletClient
-  -> POST http://TRANSACTIONMICROSERVICE/internal/v1/wallets
-  -> Transaction Service validates internal token
-  -> Transaction Service calls USER-SERVICE status endpoint
-  -> Transaction Service creates or returns the user's wallet
+  -> Oracle OUTBOX_EVENT insert
+  -> one Oracle commit
+  -> registration returns 201 independently of Kafka availability
+
+Scheduled OutboxPublisher
+  -> locks pending OUTBOX_EVENT rows
+  -> Kafka user.lifecycle.v1, key = userId
+  -> waits for acknowledgement
+  -> sets published_at on success
+  -> or records attempts/error for later retry
 ```
 
-The Transaction Service wallet operation must be idempotent and enforce one
-wallet per `userId`. Retrying the same user ID must return the existing wallet,
-not create a duplicate.
+Delivery is at-least-once. A crash after Kafka acknowledgement but before the
+Oracle `published_at` commit can cause the same event to be sent again. Consumers
+must deduplicate by `eventId`.
 
 ## Transaction annotations in plain language
 
@@ -292,7 +263,6 @@ not create a duplicate.
 | --- | --- |
 | `@Transactional` | Database changes form one commit-or-rollback unit. |
 | `@Transactional(readOnly = true)` | The operation reads data and does not intend to modify it. |
-| `@TransactionalEventListener(AFTER_COMMIT)` | The method runs only after the surrounding transaction commits successfully. |
 
 ## Important boundaries
 
@@ -311,6 +281,7 @@ not create a duplicate.
 
 - [Public API contracts](api-contracts.md)
 - [Integration contracts](integration-contracts.md)
+- [Transaction Service Kafka integration](transaction-service-kafka-integration.md)
 - [JWT integration](jwt-integration.md)
 - [IntelliJ and environment setup](setup-intellij.md)
 - [Live test plan](insomnia-live-test-plan.md)
