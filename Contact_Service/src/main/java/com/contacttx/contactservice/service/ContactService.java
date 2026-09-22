@@ -8,6 +8,7 @@ import com.contacttx.contactservice.dto.request.UpdateContactRequest;
 import com.contacttx.contactservice.dto.response.ContactResponse;
 import com.contacttx.contactservice.entity.Contact;
 import com.contacttx.contactservice.exception.ContactNotFoundException;
+import com.contacttx.contactservice.exception.DuplicateContactPhoneException;
 import com.contacttx.contactservice.exception.LinkedUserInactiveException;
 import com.contacttx.contactservice.exception.LinkedUserNotFoundException;
 import com.contacttx.contactservice.exception.SelfLinkNotAllowedException;
@@ -45,6 +46,8 @@ public class ContactService {
             Long ownerUserId,
             CreateContactRequest request) {
 
+        assertPhoneIsAvailable(request.getContactPhone());
+
         Long linkedUserId = resolveLinkedUserId(
                 ownerUserId,
                 request.getContactPhone(),
@@ -79,6 +82,7 @@ public class ContactService {
             UpdateContactRequest request) {
 
         Contact contact = findOwnedContact(ownerUserId, contactId);
+        assertPhoneIsAvailableForUpdate(request.getContactPhone(), contactId);
         Long linkedUserId = resolveLinkedUserId(
                 ownerUserId,
                 request.getContactPhone(),
@@ -123,6 +127,20 @@ public class ContactService {
         return contactRepository
                 .findByContactIdAndOwnerUserId(contactId, ownerUserId)
                 .orElseThrow(ContactNotFoundException::new);
+    }
+
+    private void assertPhoneIsAvailable(String contactPhone) {
+        if (contactRepository.existsByContactPhone(Long.valueOf(contactPhone))) {
+            throw new DuplicateContactPhoneException();
+        }
+    }
+
+    private void assertPhoneIsAvailableForUpdate(String contactPhone, Long contactId) {
+        if (contactRepository.existsByContactPhoneAndContactIdNot(
+                Long.valueOf(contactPhone),
+                contactId)) {
+            throw new DuplicateContactPhoneException();
+        }
     }
 
     private Long resolveLinkedUserId(

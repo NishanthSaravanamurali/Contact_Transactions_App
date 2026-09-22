@@ -112,6 +112,20 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(DuplicateContactPhoneException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateContactPhone(
+            DuplicateContactPhoneException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                "DUPLICATE_CONTACT_PHONE",
+                "A contact with this phone number already exists",
+                request,
+                Map.of()
+        );
+    }
+
     @ExceptionHandler(LinkedUserNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleLinkedUserNotFound(
             LinkedUserNotFoundException exception,
