@@ -3,11 +3,13 @@ package com.contacttx.userservice.service;
 import com.contacttx.userservice.dto.request.RegisterUserRequest;
 import com.contacttx.userservice.dto.response.RegistrationResponse;
 import com.contacttx.userservice.entity.AppUser;
+import com.contacttx.userservice.entity.OutboxEvent;
 import com.contacttx.userservice.entity.UserStatus;
 import com.contacttx.userservice.exception.DuplicateEmailException;
 import com.contacttx.userservice.mapper.UserMapper;
+import com.contacttx.userservice.messaging.OutboxEventFactory;
 import com.contacttx.userservice.repository.AppUserRepository;
-import org.springframework.context.ApplicationEventPublisher;
+import com.contacttx.userservice.repository.OutboxEventRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -21,19 +23,22 @@ public class UserRegistrationService {
     private static final String EMAIL_UNIQUE_CONSTRAINT = "UQ_APP_USER_EMAIL";
 
     private final AppUserRepository userRepository;
+    private final OutboxEventRepository outboxEventRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OutboxEventFactory outboxEventFactory;
 
     public UserRegistrationService(
             AppUserRepository userRepository,
+            OutboxEventRepository outboxEventRepository,
             PasswordEncoder passwordEncoder,
             UserMapper userMapper,
-            ApplicationEventPublisher eventPublisher) {
+            OutboxEventFactory outboxEventFactory) {
         this.userRepository = userRepository;
+        this.outboxEventRepository = outboxEventRepository;
         this.passwordEncoder = passwordEncoder;
         this.userMapper = userMapper;
-        this.eventPublisher = eventPublisher;
+        this.outboxEventFactory = outboxEventFactory;
     }
 
     @Transactional
@@ -54,7 +59,9 @@ public class UserRegistrationService {
 
         try {
             AppUser savedUser = userRepository.saveAndFlush(user);
-            eventPublisher.publishEvent(new UserRegisteredEvent(savedUser.getUserId()));
+            OutboxEvent outboxEvent =
+                    outboxEventFactory.createUserRegistered(savedUser.getUserId());
+            outboxEventRepository.save(outboxEvent);
             return userMapper.toRegistrationResponse(savedUser);
         } catch (DataIntegrityViolationException exception) {
             if (isDuplicateEmailViolation(exception)) {
