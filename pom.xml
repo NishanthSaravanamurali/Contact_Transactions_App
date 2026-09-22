@@ -15,5 +15,7 @@
         <module>discovery-server</module>
         <module>user-service</module>
         <module>api-gateway</module>
+        <module>TransactionMicroservice</module>
+        <module>Contact_Service</module>
     </modules>
 </project>
