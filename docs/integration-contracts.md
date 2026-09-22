@@ -107,16 +107,48 @@ the relevant status before operations that require an active user.
 Money Service uses the status endpoint before wallet setup and sensitive financial
 operations. It owns all wallet, account, and transaction records.
 
-The agreed no-Kafka registration behavior is:
+User registration no longer calls Money/Transaction Service over REST. User
+Service atomically commits the new user and a `UserRegistered` row in
+`OUTBOX_EVENT`. A scheduled publisher sends that stored envelope to Kafka after
+the database transaction commits.
+
+## Kafka user lifecycle contract
+
+Topic:
 
 ```text
-Commit the new User Service row, then request wallet creation from the
-Money/Transaction Service using the committed user ID.
+user.lifecycle.v1
 ```
 
-The wallet request is deliberately triggered after the Oracle commit. This lets
-Money/Transaction Service call the User Service status endpoint and find the new
-user. A failed wallet request does not roll back the committed user registration.
+The Kafka message key is the decimal string representation of the User Service
+ID. Example key: `1`.
+
+`UserRegistered` value:
+
+```json
+{
+  "eventId": "62ed213e-faf0-43bf-9f0f-0b932eae5ee9",
+  "eventType": "UserRegistered",
+  "eventVersion": 1,
+  "aggregateId": 1,
+  "occurredAt": "2026-09-22T10:00:00Z",
+  "payload": {
+    "userId": 1
+  }
+}
+```
+
+The envelope contains no email, mobile number, password, password hash, JWT, or
+other private authentication data.
+
+Publication is at-least-once. Kafka can acknowledge a message immediately before
+User Service crashes and before `published_at` is committed. The same event can
+therefore be published again. Consumers must persist or otherwise track `eventId`
+and ignore an event ID already processed.
+
+Money/Transaction Service may create the wallet when it consumes
+`UserRegistered`. Wallet creation must also be idempotent with one wallet per
+`userId`.
 
 ### User, wallet, and account identity
 
@@ -145,50 +177,8 @@ For public operations, `authenticatedUserId` must come from the validated JWT
 `sub` claim. A client must never be allowed to choose `ownerUserId` or
 `payerUserId` in a request body.
 
-### Internal wallet creation
-
-If Money/Transaction Service exposes the team-proposed endpoint, the complete
-service-to-service request must identify both the calling service and the user:
-
-```http
-POST /internal/v1/wallets
-X-Internal-Service-Token: <shared-service-token>
-Content-Type: application/json
-```
-
-```json
-{
-  "userId": 1
-}
-```
-
-The header authenticates the calling service; it does not identify the user whose
-wallet is being created. The `userId` in the body provides that identity.
-
-Before creating the wallet, Money/Transaction Service must:
-
-1. Validate `X-Internal-Service-Token`.
-2. Call `GET /internal/v1/users/{userId}/status` with the same service token.
-3. Require `ACTIVE` status.
-4. Find or create the wallet using the unique `userId` constraint.
-5. Return the existing wallet when one already exists, so retries cannot create
-   duplicate wallets.
-
-User Service calls this endpoint after a successful registration commit. The
-Money/Transaction endpoint must remain idempotent because a later retry of the
-same `userId` must not create a second wallet. This no-Kafka version does not have
-a durable automatic retry queue; if the remote call fails, wallet creation must be
-retried operationally or by Money/Transaction Service when the user first accesses
-a wallet operation.
-
-When using a URL such as `http://TRANSACTIONMICROSERVICE/internal/v1/wallets`, the
-host must exactly match that service's `spring.application.name`, and the caller
-must use a Eureka-aware, load-balanced HTTP client. It is not a normal public DNS
-address and is not routed through the public API Gateway.
-
 ## Deactivation limitation
 
 User Service changes an account to `INACTIVE`, but this version publishes no
-deactivation event. Contact and Money Services are not automatically notified and
-must recheck status before sensitive operations. Asynchronous Kafka propagation can
-be introduced in a later version.
+deactivation event. Only `UserRegistered` is currently written to the outbox.
+Contact and Money Services must still recheck status before sensitive operations.
