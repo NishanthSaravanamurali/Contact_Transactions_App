@@ -172,14 +172,14 @@ should redeliver the record.
 
 ## Suggested Transaction Service dependency
 
-Transaction Service uses Spring Boot `4.1.1`, so add Spring Kafka without a manual
-version and let the Spring Boot dependency management select the compatible
-release:
+Transaction Service uses Spring Boot `4.1.1`, so use Spring Boot's Kafka starter
+without a manual version. The starter provides Spring Kafka and the Boot
+auto-configuration that creates the required Kafka infrastructure beans:
 
 ```xml
 <dependency>
-    <groupId>org.springframework.kafka</groupId>
-    <artifactId>spring-kafka</artifactId>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-kafka</artifactId>
 </dependency>
 ```
 
