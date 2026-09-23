@@ -8,6 +8,7 @@ public class ContactResponse {
     private String contactName;
     private String contactPhone;
     private boolean linkedToRegisteredUser;
+    private Long linkedUserId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -55,6 +56,14 @@ public class ContactResponse {
 
     public boolean isLinkedToRegisteredUser() {
         return linkedToRegisteredUser;
+    }
+
+    public Long getLinkedUserId() {
+        return linkedUserId;
+    }
+
+    public void setLinkedUserId(Long linkedUserId) {
+        this.linkedUserId = linkedUserId;
     }
 
     public void setLinkedToRegisteredUser(boolean linkedToRegisteredUser) {

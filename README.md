@@ -52,6 +52,36 @@ applications.
 
 ## Start order
 
+### Start all five services on Windows
+
+Copy `.env.example` to `.env` in this backend folder and fill in your database,
+JWT keys, and shared internal token (or set these variables in your shell).
+Variables saved only in IntelliJ run configurations are not available to the
+launcher. Java 24 and the existing Oracle database/schema must be available.
+
+Double-click **`start-all.bat`**, or run it from PowerShell:
+
+```powershell
+.\start-all.bat
+```
+
+The launcher starts Discovery (8761), User (8081), Contact (8082), Transaction
+(8083), then Gateway (8080). It waits for health and Eureka registration before
+moving to the next service. Transaction has no health endpoint, so its readiness
+check uses its listening port and Eureka UP registration. Local ports and the
+local Eureka URL are enforced for this launcher.
+
+Keep the launcher window open; use **Ctrl+C** to stop its services in reverse
+order. Startup failures/timeouts also stop services launched by this invocation.
+Existing occupied ports cause an error before anything starts. Logs are saved in
+`logs/<timestamp>/`, with separate output and error files per service.
+
+Use `.\start-all.bat -Check` for environment/path/port checks without starting
+services, or `.\start-all.bat -StartupTimeoutSeconds 600` to allow more time for
+initial Maven downloads. The default timeout is 300 seconds per service.
+
+### Start individual services
+
 Use three IntelliJ run configurations or three PowerShell windows:
 
 ```powershell
