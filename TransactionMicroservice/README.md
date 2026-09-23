@@ -252,6 +252,54 @@ The current implementation checks sender and receiver activity through User Serv
 - One user has one wallet; `wallet.user_id` is unique.
 - Concurrent money operations use pessimistic database locks to prevent double spending.
 
+## Kafka wallet provisioning
+
+Transaction Service consumes committed registrations from Kafka topic
+`user.lifecycle.v1` with consumer group `transaction-wallet-provisioner`. It does
+not call User Service over HTTP before creating the wallet.
+
+The listener matches the User Service envelope exactly:
+
+```json
+{
+  "eventId": "6b4d0ab2-6fb1-4e3a-9c4d-94fc858f2eaa",
+  "eventType": "UserRegistered",
+  "eventVersion": 1,
+  "aggregateId": 41,
+  "occurredAt": "2026-09-22T16:42:44.033384Z",
+  "payload": {
+    "userId": 41
+  }
+}
+```
+
+The Kafka key must equal the decimal `aggregateId`. The listener validates the
+UUID event ID, event type/version, timestamp, positive identifiers, key, and the
+equality of `aggregateId` and `payload.userId`.
+
+Wallet creation runs through the existing transactional
+`WalletCommandService.createWallet(userId)`. Existing wallets complete
+successfully without another insert. Oracle must enforce uniqueness as the final
+concurrency safeguard:
+
+```sql
+SELECT user_id, COUNT(*)
+FROM wallet
+GROUP BY user_id
+HAVING COUNT(*) > 1;
+
+ALTER TABLE wallet
+ADD CONSTRAINT uq_wallet_user_id UNIQUE (user_id);
+```
+
+Run the `ALTER TABLE` only if Oracle metadata confirms that an equivalent unique
+constraint/index does not already exist.
+
+Database/runtime failures are retried three times with a two-second fixed
+backoff. Exhausted failures and malformed events are published to
+`user.lifecycle.v1.DLT`. The Kafka offset advances only after wallet creation
+commits or the record has been successfully recovered to the DLT.
+
 ## Runtime configuration
 
 Required environment variables:
@@ -259,6 +307,9 @@ Required environment variables:
 ```text
 JWT_PUBLIC_KEY=<X.509 RSA public key from User Service>
 INTERNAL_SERVICE_TOKEN=<shared backend secret>
+DB_URL=<Oracle JDBC URL>
+DB_USERNAME=<Oracle application username>
+DB_PASSWORD=<Oracle application password>
 ```
 
 Optional environment variables with local defaults:
@@ -266,9 +317,17 @@ Optional environment variables with local defaults:
 ```text
 EUREKA_URL=http://localhost:8761/eureka/
 USER_SERVICE_ID=USER-SERVICE
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+KAFKA_USER_LIFECYCLE_TOPIC=user.lifecycle.v1
+KAFKA_USER_LIFECYCLE_DLT_TOPIC=user.lifecycle.v1.DLT
+KAFKA_USER_LIFECYCLE_GROUP=transaction-wallet-provisioner
+KAFKA_AUTO_OFFSET_RESET=earliest
+KAFKA_RETRY_INTERVAL_MS=2000
+KAFKA_MAX_RETRIES=3
 ```
 
-The database configuration is currently local-development configuration. Production must use a dedicated Oracle application user and environment-managed database credentials.
+Kafka credentials, when required by the deployed cluster, must also be supplied
+through environment-specific configuration rather than committed to source.
 
 ## Current limitations
 

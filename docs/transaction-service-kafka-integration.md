@@ -96,38 +96,13 @@ Before processing a message, Transaction Service should verify:
 An invalid event should not create a wallet. Log the `eventId` and a safe error
 code, but do not log the complete event body unnecessarily.
 
-## User status verification
+## No registration callback
 
-The event proves that the user registration committed. However, Kafka delivery
-can be delayed and the user may have become inactive before Transaction Service
-processes it.
-
-Before creating the wallet, Transaction Service should call:
-
-```http
-GET http://USER-SERVICE/internal/v1/users/{userId}/status
-X-Internal-Service-Token: <shared INTERNAL_SERVICE_TOKEN>
-```
-
-Expected response:
-
-```json
-{
-  "userId": 42,
-  "status": "ACTIVE"
-}
-```
-
-Only create the wallet when:
-
-- The returned `userId` equals the event's user ID.
-- The returned status is `ACTIVE`.
-
-This HTTP call uses Eureka service discovery and the internal service token. It
-does not use the user's JWT and is not routed through API Gateway.
-
-If User Service is temporarily unavailable, fail the Kafka listener invocation so
-the record can be retried. Do not acknowledge and discard the event.
+The committed `UserRegistered` event is the input contract for wallet
+provisioning. Transaction Service does not call User Service over HTTP to confirm
+the event or retrieve the user before creating the wallet. Existing synchronous
+status checks remain applicable to later sensitive money operations, not to this
+registration consumer.
 
 ## Wallet creation must be idempotent
 
@@ -142,22 +117,16 @@ Kafka accepts UserRegistered
 
 Transaction Service must therefore handle duplicate delivery safely.
 
-Use both safeguards:
-
-1. Store processed `eventId` values with a unique database constraint.
-2. Enforce one wallet per `userId` with a unique database constraint.
+The implemented side effect is naturally keyed by user ID, so Transaction Service
+enforces one wallet per `userId` with a database unique constraint.
 
 The consumer transaction should perform the following atomically in the
 Transaction Service database:
 
 ```text
-If eventId was already processed
-  -> return successfully without creating anything
-
-Otherwise
-  -> find wallet by userId
-  -> create it only when absent
-  -> record eventId as processed
+Find wallet by userId
+  -> if present, return successfully
+  -> otherwise create it
   -> commit
 ```
 
@@ -192,20 +161,23 @@ Environment variables:
 ```text
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 KAFKA_USER_LIFECYCLE_TOPIC=user.lifecycle.v1
-KAFKA_USER_LIFECYCLE_GROUP=transaction-service-user-lifecycle-v1
+KAFKA_USER_LIFECYCLE_DLT_TOPIC=user.lifecycle.v1.DLT
+KAFKA_USER_LIFECYCLE_GROUP=transaction-wallet-provisioner
 ```
 
 Example properties:
 
 ```properties
 spring.kafka.bootstrap-servers=${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-spring.kafka.consumer.group-id=${KAFKA_USER_LIFECYCLE_GROUP:transaction-service-user-lifecycle-v1}
+spring.kafka.consumer.group-id=${KAFKA_USER_LIFECYCLE_GROUP:transaction-wallet-provisioner}
+spring.kafka.consumer.auto-offset-reset=${KAFKA_AUTO_OFFSET_RESET:earliest}
 spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer
 spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.StringDeserializer
 spring.kafka.consumer.enable-auto-commit=false
 spring.kafka.listener.ack-mode=record
 
 messaging.kafka.user-lifecycle-topic=${KAFKA_USER_LIFECYCLE_TOPIC:user.lifecycle.v1}
+messaging.kafka.user-lifecycle-dlt-topic=${KAFKA_USER_LIFECYCLE_DLT_TOPIC:user.lifecycle.v1.DLT}
 ```
 
 Use a stable group ID. Changing the group ID makes Kafka treat the consumer as a
