@@ -7,6 +7,7 @@ import com.oracle.transactionmicroservice.entity.Transaction;
 import com.oracle.transactionmicroservice.entity.Wallet;
 import com.oracle.transactionmicroservice.enums.AccountStatus;
 import com.oracle.transactionmicroservice.enums.TransactionStatus;
+import com.oracle.transactionmicroservice.enums.TransactionType;
 import com.oracle.transactionmicroservice.exception.ForbiddenOperationException;
 import com.oracle.transactionmicroservice.exception.InvalidMoneyException;
 import com.oracle.transactionmicroservice.exception.ResourceNotFoundException;
@@ -18,6 +19,7 @@ import com.oracle.transactionmicroservice.service.abstractions.UserOperationGuar
 import com.oracle.transactionmicroservice.service.implementations.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionDefinition;
@@ -25,6 +27,7 @@ import org.springframework.transaction.support.AbstractPlatformTransactionManage
 import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -77,6 +80,7 @@ class ServiceLayerTests {
         assertEquals(TransactionStatus.COMPLETED, result.status());
         assertNotNull(result.completedAt());
         assertNull(result.sourceWalletId());
+        assertEquals(1L, result.destinationUserId());
         assertEquals(1, transactionManager.commits);
         assertFalse(guardHeld);
         var order = inOrder(accounts, wallets);
@@ -112,6 +116,7 @@ class ServiceLayerTests {
         assertEquals(money("40.00"), second.getBalance());
         assertEquals(TransactionStatus.COMPLETED, result.status());
         assertNull(result.sourceAccountId());
+        assertEquals(1L, result.destinationUserId());
         var order = inOrder(wallets);
         order.verify(wallets).findByUserIdForUpdate(1L);
         order.verify(wallets).findByUserIdForUpdate(2L);
@@ -215,6 +220,21 @@ class ServiceLayerTests {
                 () -> new TransactionQueryServiceImpl(transactions)
                         .getAll(1L, PageRequest.of(0, 101)));
         verifyNoInteractions(transactions);
+    }
+
+    @Test
+    void transactionHistoryIncludesDestinationWalletOwner() {
+        var pageable = PageRequest.of(0, 20);
+        var transaction = new Transaction(
+                TransactionType.W2W, wallet(1L, "10.00"), null,
+                wallet(2L, "5.00"), money("1.00"));
+        when(transactions.findAllVisibleTransactions(1L, pageable))
+                .thenReturn(new PageImpl<>(List.of(transaction), pageable, 1));
+
+        var result = new TransactionQueryServiceImpl(transactions)
+                .getAll(1L, pageable);
+
+        assertEquals(2L, result.getContent().get(0).destinationUserId());
     }
 
     @Test

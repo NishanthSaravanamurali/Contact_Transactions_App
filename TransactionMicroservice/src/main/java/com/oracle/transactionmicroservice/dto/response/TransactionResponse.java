@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 // This returns account and wallet IDs without exposing JPA entities.
 // sourceWalletId is null for A2W,
 // sourceAccountId is null for W2W,
+// destinationUserId is the owner recorded on destinationWalletId,
 // and completedAt is null until completion.
 public record TransactionResponse(
         Long transactionId,
@@ -16,6 +17,7 @@ public record TransactionResponse(
         Long sourceWalletId,
         Long sourceAccountId,
         Long destinationWalletId,
+        Long destinationUserId,
         BigDecimal amount,
         TransactionStatus status,
         LocalDateTime createdAt,
