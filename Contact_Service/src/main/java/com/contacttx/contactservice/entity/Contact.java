@@ -30,6 +30,9 @@ public class Contact {
     @Column(name = "CONTACT_PHONE", nullable = false, precision = 10, scale = 0)
     private Long contactPhone;
 
+    @Column(name = "IS_FAVORITE", nullable = false)
+    private Boolean favorite = false;
+
     @Column(name = "CREATED_AT", nullable = false, insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -80,6 +83,14 @@ public class Contact {
 
     public void setContactPhone(Long contactPhone) {
         this.contactPhone = contactPhone;
+    }
+
+    public boolean isFavorite() {
+        return Boolean.TRUE.equals(favorite);
+    }
+
+    public void setFavorite(Boolean favorite) {
+        this.favorite = favorite;
     }
 
     public LocalDateTime getCreatedAt() {
