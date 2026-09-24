@@ -19,6 +19,7 @@ A discovery-aware service calls URLs such as:
 ```text
 http://USER-SERVICE/internal/v1/users/1/status
 http://USER-SERVICE/internal/v1/users/resolve
+http://USER-SERVICE/internal/v1/users/display-names
 ```
 
 The caller must use a load-balanced Spring HTTP client so `USER-SERVICE` is
@@ -102,10 +103,47 @@ Contact Service may use both internal endpoints. It stores User Service IDs as
 external identifiers without a cross-schema database foreign key. It must validate
 the relevant status before operations that require an active user.
 
+## Resolve registered display names in bulk
+
+Transaction Service uses one bulk request per transaction-history page so a user
+who has not saved the other participant as a contact can still see that person's
+registered profile name.
+
+```http
+POST /internal/v1/users/display-names
+X-Internal-Service-Token: <service-token>
+Content-Type: application/json
+```
+
+```json
+{
+  "userIds": [7, 12, 25]
+}
+```
+
+The request must contain 1–200 positive user IDs. Duplicate IDs are accepted and
+resolved once, preserving their first-requested order.
+
+```json
+{
+  "users": [
+    { "userId": 7, "displayName": "Alice Sharma" },
+    { "userId": 12, "displayName": "Bob Tester" }
+  ],
+  "unresolvedUserIds": [25]
+}
+```
+
+Deleted or missing users are listed in `unresolvedUserIds`; their names are not
+returned. This endpoint is internal-only and must not be exposed through the API
+Gateway or called directly by the browser.
+
 ## Money Service rule
 
 Money Service uses the status endpoint before wallet setup and sensitive financial
-operations. It owns all wallet, account, and transaction records.
+operations. It uses the bulk display-name endpoint while building transaction
+history and owns all wallet, account, and transaction records. If the display-name
+lookup is unavailable, history still succeeds with nullable name fields.
 
 User registration no longer calls Money/Transaction Service over REST. User
 Service atomically commits the new user and a `UserRegistered` row in

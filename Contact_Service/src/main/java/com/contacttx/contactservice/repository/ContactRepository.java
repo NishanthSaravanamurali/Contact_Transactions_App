@@ -14,11 +14,16 @@ public interface ContactRepository extends Repository<Contact, Long> {
 
     Optional<Contact> findByContactIdAndOwnerUserId(Long contactId, Long ownerUserId);
 
-    boolean existsByContactPhone(Long contactPhone);
+    List<Contact> findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
+            Long ownerUserId,
+            Long linkedUserId);
 
-    boolean existsByContactPhoneAndContactIdNot(Long contactPhone, Long contactId);
+    boolean existsByOwnerUserIdAndContactPhone(Long ownerUserId, Long contactPhone);
 
-    boolean existsByOwnerUserIdAndLinkedUserId(Long ownerUserId, Long linkedUserId);
+    boolean existsByOwnerUserIdAndContactPhoneAndContactIdNot(
+            Long ownerUserId,
+            Long contactPhone,
+            Long contactId);
 
     long deleteByContactIdAndOwnerUserId(Long contactId, Long ownerUserId);
 }

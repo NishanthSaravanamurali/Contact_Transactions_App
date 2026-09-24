@@ -16,6 +16,7 @@ import com.oracle.transactionmicroservice.repository.AccountRepository;
 import com.oracle.transactionmicroservice.repository.TransactionRepository;
 import com.oracle.transactionmicroservice.repository.WalletRepository;
 import com.oracle.transactionmicroservice.service.abstractions.UserOperationGuard;
+import com.oracle.transactionmicroservice.service.abstractions.UserDisplayNameResolver;
 import com.oracle.transactionmicroservice.service.implementations.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,9 @@ import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,6 +42,7 @@ class ServiceLayerTests {
     private AccountRepository accounts;
     private WalletRepository wallets;
     private TransactionRepository transactions;
+    private UserDisplayNameResolver displayNames;
     private TrackingTransactionManager transactionManager;
     private GuardedLocalTransaction localTransaction;
     private WalletCommandServiceImpl service;
@@ -49,6 +53,7 @@ class ServiceLayerTests {
         accounts = mock(AccountRepository.class);
         wallets = mock(WalletRepository.class);
         transactions = mock(TransactionRepository.class);
+        displayNames = mock(UserDisplayNameResolver.class);
         transactionManager = new TrackingTransactionManager();
         UserOperationGuard guard = new UserOperationGuard() {
             @Override
@@ -80,6 +85,7 @@ class ServiceLayerTests {
         assertEquals(TransactionStatus.COMPLETED, result.status());
         assertNotNull(result.completedAt());
         assertNull(result.sourceWalletId());
+        assertNull(result.sourceUserId());
         assertEquals(1L, result.destinationUserId());
         assertEquals(1, transactionManager.commits);
         assertFalse(guardHeld);
@@ -116,6 +122,7 @@ class ServiceLayerTests {
         assertEquals(money("40.00"), second.getBalance());
         assertEquals(TransactionStatus.COMPLETED, result.status());
         assertNull(result.sourceAccountId());
+        assertEquals(2L, result.sourceUserId());
         assertEquals(1L, result.destinationUserId());
         var order = inOrder(wallets);
         order.verify(wallets).findByUserIdForUpdate(1L);
@@ -217,24 +224,31 @@ class ServiceLayerTests {
     @Test
     void transactionQueryRejectsUnboundedPageSize() {
         assertThrows(IllegalArgumentException.class,
-                () -> new TransactionQueryServiceImpl(transactions)
+                () -> new TransactionQueryServiceImpl(transactions, displayNames)
                         .getAll(1L, PageRequest.of(0, 101)));
         verifyNoInteractions(transactions);
+        verifyNoInteractions(displayNames);
     }
 
     @Test
-    void transactionHistoryIncludesDestinationWalletOwner() {
+    void transactionHistoryIncludesWalletOwners() {
         var pageable = PageRequest.of(0, 20);
         var transaction = new Transaction(
                 TransactionType.W2W, wallet(1L, "10.00"), null,
                 wallet(2L, "5.00"), money("1.00"));
         when(transactions.findAllVisibleTransactions(1L, pageable))
                 .thenReturn(new PageImpl<>(List.of(transaction), pageable, 1));
+        when(displayNames.resolve(Set.of(1L, 2L)))
+                .thenReturn(Map.of(1L, "Alice Sharma", 2L, "Bob Tester"));
 
-        var result = new TransactionQueryServiceImpl(transactions)
+        var result = new TransactionQueryServiceImpl(transactions, displayNames)
                 .getAll(1L, pageable);
 
+        assertEquals(1L, result.getContent().get(0).sourceUserId());
+        assertEquals("Alice Sharma", result.getContent().get(0).sourceUserName());
         assertEquals(2L, result.getContent().get(0).destinationUserId());
+        assertEquals("Bob Tester", result.getContent().get(0).destinationUserName());
+        verify(displayNames).resolve(Set.of(1L, 2L));
     }
 
     @Test

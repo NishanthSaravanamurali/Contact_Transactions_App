@@ -8,9 +8,16 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface AppUserRepository extends JpaRepository<AppUser, Long> {
+
+    interface UserDisplayNameProjection {
+        Long getUserId();
+        String getName();
+    }
 
     Optional<AppUser> findByEmail(String email);
 
@@ -19,6 +26,16 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     Optional<AppUser> findByUserIdAndStatus(Long userId, UserStatus status);
 
     Optional<AppUser> findFirstByMobileNoOrderByUserIdAsc(Long mobileNo);
+
+    @Query("""
+            select user.userId as userId, user.name as name
+              from AppUser user
+             where user.userId in :userIds
+               and user.status <> :excludedStatus
+            """)
+    List<UserDisplayNameProjection> findDisplayNamesByUserIds(
+            @Param("userIds") Collection<Long> userIds,
+            @Param("excludedStatus") UserStatus excludedStatus);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

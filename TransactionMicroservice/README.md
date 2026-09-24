@@ -152,7 +152,7 @@ Authorization: Bearer <access-token>
 
 `page` starts at `0`. `size` must be from `1` to `100`. Results are newest first.
 
-Only transactions where the current user owns the source wallet or destination wallet are returned. The response is a standard Spring `Page` containing `content` and paging metadata.
+Completed W2W transactions are visible to both wallet owners. Failed W2W attempts are visible only to the source-wallet owner, so an intended recipient does not see money that never moved. A2W transactions are visible to the source-account owner. The response is a standard Spring `Page` containing `content` and paging metadata.
 
 ### Get a single visible transaction
 
@@ -172,8 +172,12 @@ Only a transaction visible to the JWT user can be returned.
   "transactionId": 500,
   "transactionType": "W2W",
   "sourceWalletId": 25,
+  "sourceUserId": 7,
+  "sourceUserName": "Alice Sharma",
   "sourceAccountId": null,
   "destinationWalletId": 90,
+  "destinationUserId": 12,
+  "destinationUserName": "Bob Tester",
   "amount": 125.00,
   "status": "COMPLETED",
   "createdAt": "2026-09-18T11:00:00",
@@ -181,7 +185,7 @@ Only a transaction visible to the JWT user can be returned.
 }
 ```
 
-For `A2W`, `sourceWalletId` is `null` and `sourceAccountId` is populated. For `W2W`, `sourceAccountId` is `null`.
+For `A2W`, `sourceWalletId`, `sourceUserId`, and `sourceUserName` are `null`, while `sourceAccountId` is populated. For `W2W`, `sourceAccountId` is `null`. The user IDs belong to the corresponding wallets. Transaction query endpoints resolve registered profile names in one internal User Service request per page; name fields remain nullable when a user is missing/deleted or Identity Service is unavailable. The frontend should prefer its current user's saved contact nickname, then use the registered name as the fallback. Money command responses may also leave the name fields `null` because the requested change is applied to transaction queries.
 
 If funds are insufficient, the service records and returns a transaction with `status: "FAILED"`; balances are unchanged.
 
@@ -241,7 +245,20 @@ Any status other than `ACTIVE`, an unavailable User Service, or an invalid inter
 
 ## Contact Service integration
 
-The current implementation checks sender and receiver activity through User Service. Contact-based recipient eligibility is not implemented yet. When the Contact Service contract is agreed, Transaction Service will call a protected Contact Service internal endpoint before completing a wallet-to-wallet payment.
+The implementation checks sender and receiver activity through User Service and calls `POST /internal/v1/contacts/payment-eligibility` before entering the local wallet transaction. Contact Service re-resolves the sender's stored contact phone and requires it to map to the requested active receiver. A stale or reassigned phone therefore rejects the payment before wallet locks, balance changes, or transaction-row creation.
+
+For a stale phone, `makePayment` returns HTTP `403` with a JSON body such as:
+
+```json
+{
+  "status": 403,
+  "errorCode": "CONTACT_PHONE_MISMATCH",
+  "message": "This contact’s phone number no longer matches the registered user. Update the contact before transferring money.",
+  "path": "/api/v1/money/wallet/makePayment",
+  "traceId": "31ac7274-1405-40a2-8a0f-8fb505f67dd5",
+  "fieldErrors": {}
+}
+```
 
 ## Validation and business rules
 

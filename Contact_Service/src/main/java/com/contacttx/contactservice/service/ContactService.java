@@ -2,9 +2,10 @@ package com.contacttx.contactservice.service;
 
 import com.contacttx.contactservice.client.UserServiceClient;
 import com.contacttx.contactservice.client.dto.ResolveUserResponse;
-import com.contacttx.contactservice.client.dto.UserStatusResponse;
 import com.contacttx.contactservice.dto.request.CreateContactRequest;
 import com.contacttx.contactservice.dto.request.UpdateContactRequest;
+import com.contacttx.contactservice.dto.response.PaymentEligibilityReason;
+import com.contacttx.contactservice.dto.response.PaymentEligibilityResponse;
 import com.contacttx.contactservice.dto.response.ContactResponse;
 import com.contacttx.contactservice.entity.Contact;
 import com.contacttx.contactservice.exception.ContactNotFoundException;
@@ -46,7 +47,7 @@ public class ContactService {
             Long ownerUserId,
             CreateContactRequest request) {
 
-        assertPhoneIsAvailable(request.getContactPhone());
+        assertPhoneIsAvailable(ownerUserId, request.getContactPhone());
 
         Long linkedUserId = resolveLinkedUserId(
                 ownerUserId,
@@ -82,7 +83,11 @@ public class ContactService {
             UpdateContactRequest request) {
 
         Contact contact = findOwnedContact(ownerUserId, contactId);
-        assertPhoneIsAvailableForUpdate(request.getContactPhone(), contactId);
+        assertPhoneIsAvailableForUpdate(
+                ownerUserId,
+                request.getContactPhone(),
+                contactId
+        );
         Long linkedUserId = resolveLinkedUserId(
                 ownerUserId,
                 request.getContactPhone(),
@@ -108,19 +113,40 @@ public class ContactService {
     }
 
     @Transactional(readOnly = true)
-    public boolean isPaymentEligible(Long senderUserId, Long receiverUserId) {
-        if (senderUserId.equals(receiverUserId)
-                || !contactRepository.existsByOwnerUserIdAndLinkedUserId(
-                        senderUserId,
-                        receiverUserId)) {
-            return false;
+    public PaymentEligibilityResponse checkPaymentEligibility(
+            Long senderUserId,
+            Long receiverUserId) {
+        if (senderUserId.equals(receiverUserId)) {
+            return PaymentEligibilityResponse.denied(
+                    PaymentEligibilityReason.SELF_PAYMENT);
         }
 
-        return userServiceClient.getUserStatus(receiverUserId)
-                .filter(response -> receiverUserId.equals(response.getUserId()))
-                .map(UserStatusResponse::getStatus)
-                .map(ACTIVE_STATUS::equals)
-                .orElse(false);
+        List<Contact> linkedContacts = contactRepository
+                .findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
+                        senderUserId,
+                        receiverUserId);
+        if (linkedContacts.isEmpty()) {
+            return PaymentEligibilityResponse.denied(
+                    PaymentEligibilityReason.CONTACT_NOT_FOUND);
+        }
+
+        boolean matchingUserIsInactive = false;
+        for (Contact contact : linkedContacts) {
+            var resolvedUser = userServiceClient.resolveUser(
+                    String.valueOf(contact.getContactPhone()));
+            if (resolvedUser.isEmpty()
+                    || !receiverUserId.equals(resolvedUser.get().getUserId())) {
+                continue;
+            }
+            if (ACTIVE_STATUS.equals(resolvedUser.get().getStatus())) {
+                return PaymentEligibilityResponse.eligible();
+            }
+            matchingUserIsInactive = true;
+        }
+
+        return PaymentEligibilityResponse.denied(matchingUserIsInactive
+                ? PaymentEligibilityReason.RECEIVER_INACTIVE
+                : PaymentEligibilityReason.CONTACT_PHONE_MISMATCH);
     }
 
     private Contact findOwnedContact(Long ownerUserId, Long contactId) {
@@ -129,14 +155,20 @@ public class ContactService {
                 .orElseThrow(ContactNotFoundException::new);
     }
 
-    private void assertPhoneIsAvailable(String contactPhone) {
-        if (contactRepository.existsByContactPhone(Long.valueOf(contactPhone))) {
+    private void assertPhoneIsAvailable(Long ownerUserId, String contactPhone) {
+        if (contactRepository.existsByOwnerUserIdAndContactPhone(
+                ownerUserId,
+                Long.valueOf(contactPhone))) {
             throw new DuplicateContactPhoneException();
         }
     }
 
-    private void assertPhoneIsAvailableForUpdate(String contactPhone, Long contactId) {
-        if (contactRepository.existsByContactPhoneAndContactIdNot(
+    private void assertPhoneIsAvailableForUpdate(
+            Long ownerUserId,
+            String contactPhone,
+            Long contactId) {
+        if (contactRepository.existsByOwnerUserIdAndContactPhoneAndContactIdNot(
+                ownerUserId,
                 Long.valueOf(contactPhone),
                 contactId)) {
             throw new DuplicateContactPhoneException();
