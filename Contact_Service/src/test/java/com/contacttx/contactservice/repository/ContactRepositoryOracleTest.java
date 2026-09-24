@@ -85,10 +85,14 @@ class ContactRepositoryOracleTest {
         ));
         entityManager.flush();
 
-        assertThat(contactRepository.existsByOwnerUserIdAndLinkedUserId(OWNER_ID, linkedUserId))
-                .isTrue();
-        assertThat(contactRepository.existsByOwnerUserIdAndLinkedUserId(OTHER_OWNER_ID, linkedUserId))
-                .isFalse();
+        assertThat(contactRepository
+                .findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
+                        OWNER_ID, linkedUserId))
+                .hasSize(1);
+        assertThat(contactRepository
+                .findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
+                        OTHER_OWNER_ID, linkedUserId))
+                .isEmpty();
     }
 
     @Test
