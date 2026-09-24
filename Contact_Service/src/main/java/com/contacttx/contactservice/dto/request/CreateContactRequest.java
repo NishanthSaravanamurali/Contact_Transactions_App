@@ -14,7 +14,7 @@ public class CreateContactRequest {
     private String contactName;
 
     @NotBlank(message = "contactPhone is required")
-    @Pattern(regexp = "[0-9]{10}", message = "contactPhone must contain exactly 10 digits")
+    @Pattern(regexp = "[6-9][0-9]{09}", message = "contactPhone must contain exactly 10 digits")
     @JsonDeserialize(using = StrictStringDeserializer.class)
     private String contactPhone;
 
