@@ -1,8 +1,192 @@
 [CmdletBinding()]
 param(
     [ValidateRange(30, 3600)][int]$StartupTimeoutSeconds = 300,
-    [switch]$Check
+    [switch]$Check,
+    [Parameter(DontShow)][switch]$LoadJobSupportOnly
 )
+
+function Initialize-BackendJobSupport {
+    if ('ContactTx.LauncherJob' -as [type]) { return }
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace ContactTx {
+    // The launcher alone owns this non-inheritable handle. Windows closes it
+    // even on forced termination, killing every process in the job hierarchy.
+    public sealed class LauncherJob : IDisposable {
+        private IntPtr handle;
+        [StructLayout(LayoutKind.Sequential)] struct BasicLimits {
+            public long ProcessTime, JobTime;
+            public uint Flags;
+            public UIntPtr MinWorkingSet, MaxWorkingSet;
+            public uint ActiveProcesses;
+            public UIntPtr Affinity;
+            public uint Priority, Scheduling;
+        }
+        [StructLayout(LayoutKind.Sequential)] struct IoCounters {
+            public ulong ReadOps, WriteOps, OtherOps, ReadBytes, WriteBytes, OtherBytes;
+        }
+        [StructLayout(LayoutKind.Sequential)] struct ExtendedLimits {
+            public BasicLimits Basic;
+            public IoCounters Io;
+            public UIntPtr ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory;
+        }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] struct StartupInfo {
+            public int Size;
+            public string Reserved, Desktop, Title;
+            public uint X, Y, XSize, YSize, XCount, YCount, Fill, Flags;
+            public ushort ShowWindow, ReservedSize;
+            public IntPtr ReservedData, Input, Output, Error;
+        }
+        [StructLayout(LayoutKind.Sequential)] struct StartupInfoEx {
+            public StartupInfo Info;
+            public IntPtr Attributes;
+        }
+        [StructLayout(LayoutKind.Sequential)] struct ProcessInfo {
+            public IntPtr Process, Thread;
+            public uint ProcessId, ThreadId;
+        }
+        [StructLayout(LayoutKind.Sequential)] struct SecurityAttributes {
+            public int Length;
+            public IntPtr Descriptor;
+            public int Inherit;
+        }
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern IntPtr CreateFile(string name, uint access, uint share, ref SecurityAttributes security, uint creation, uint flags, IntPtr template);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern IntPtr CreateJobObject(IntPtr attributes, string name);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref ExtendedLimits info, uint length);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern IntPtr OpenJobObject(uint access, bool inherit, string name);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool TerminateJobObject(IntPtr job, uint exitCode);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool InitializeProcThreadAttributeList(IntPtr list, int count, int flags, ref IntPtr size);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool UpdateProcThreadAttribute(IntPtr list, uint flags, IntPtr attribute, IntPtr value, IntPtr size, IntPtr previous, IntPtr returned);
+        [DllImport("kernel32.dll")]
+        static extern void DeleteProcThreadAttributeList(IntPtr list);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern bool CreateProcess(string application, StringBuilder command, IntPtr processAttributes, IntPtr threadAttributes, bool inherit, uint flags, IntPtr environment, string directory, ref StartupInfoEx startup, out ProcessInfo process);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern uint ResumeThread(IntPtr thread);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool TerminateProcess(IntPtr process, uint exitCode);
+        [DllImport("kernel32.dll")]
+        static extern bool CloseHandle(IntPtr value);
+
+        public LauncherJob(string name) {
+            handle = CreateJobObject(IntPtr.Zero, name);
+            if (handle == IntPtr.Zero) throw new Win32Exception();
+            var limits = new ExtendedLimits();
+            limits.Basic.Flags = 0x2000; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            if (!SetInformationJobObject(handle, 9, ref limits, (uint)Marshal.SizeOf(limits))) {
+                int error = Marshal.GetLastWin32Error();
+                Dispose();
+                throw new Win32Exception(error);
+            }
+        }
+
+        public Process Start(string executable, string arguments, string directory) {
+            return Start(executable, arguments, directory, null, null);
+        }
+
+        public Process Start(string executable, string arguments, string directory, string outputPath, string errorPath) {
+            if (handle == IntPtr.Zero) throw new ObjectDisposedException("LauncherJob");
+            IntPtr size = IntPtr.Zero, attributes = IntPtr.Zero, jobList = IntPtr.Zero;
+            IntPtr handleList = IntPtr.Zero, input = IntPtr.Zero, output = IntPtr.Zero, errorOutput = IntPtr.Zero;
+            bool initialized = false, resumed = false;
+            var child = new ProcessInfo();
+            try {
+                InitializeProcThreadAttributeList(IntPtr.Zero, 2, 0, ref size);
+                attributes = Marshal.AllocHGlobal(size);
+                if (!InitializeProcThreadAttributeList(attributes, 2, 0, ref size)) throw new Win32Exception();
+                initialized = true;
+                jobList = Marshal.AllocHGlobal(IntPtr.Size);
+                Marshal.WriteIntPtr(jobList, handle);
+                // Windows 10+: assign atomically at creation. There is no window
+                // where a launcher crash can leave an unowned suspended child.
+                if (!UpdateProcThreadAttribute(attributes, 0, new IntPtr(0x2000D), jobList, new IntPtr(IntPtr.Size), IntPtr.Zero, IntPtr.Zero)) throw new Win32Exception();
+                var security = new SecurityAttributes();
+                security.Length = Marshal.SizeOf(security);
+                security.Inherit = 1;
+                input = CreateFile("NUL", 0x80000000, 3, ref security, 3, 0x80, IntPtr.Zero);
+                output = CreateFile(outputPath ?? "NUL", 0x40000000, 3, ref security, outputPath == null ? 3u : 2u, 0x80, IntPtr.Zero);
+                errorOutput = CreateFile(errorPath ?? "NUL", 0x40000000, 3, ref security, errorPath == null ? 3u : 2u, 0x80, IntPtr.Zero);
+                if (input == new IntPtr(-1) || output == new IntPtr(-1) || errorOutput == new IntPtr(-1)) throw new Win32Exception();
+                // Valid standard handles are needed by .NET/PowerShell when
+                // spawning grandchildren without a console. Inherit only these
+                // handles, never the job handle (which would defeat kill-on-close).
+                handleList = Marshal.AllocHGlobal(3 * IntPtr.Size);
+                Marshal.WriteIntPtr(handleList, 0, input);
+                Marshal.WriteIntPtr(handleList, IntPtr.Size, output);
+                Marshal.WriteIntPtr(handleList, 2 * IntPtr.Size, errorOutput);
+                if (!UpdateProcThreadAttribute(attributes, 0, new IntPtr(0x20002), handleList, new IntPtr(3 * IntPtr.Size), IntPtr.Zero, IntPtr.Zero)) throw new Win32Exception();
+                var startup = new StartupInfoEx();
+                startup.Info.Size = Marshal.SizeOf(startup);
+                startup.Info.Flags = 0x100; // STARTF_USESTDHANDLES
+                startup.Info.Input = input;
+                startup.Info.Output = output;
+                startup.Info.Error = errorOutput;
+                startup.Attributes = attributes;
+                var command = new StringBuilder("\"" + executable + "\" " + arguments);
+                // CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED
+                if (!CreateProcess(executable, command, IntPtr.Zero, IntPtr.Zero, true, 0x08080004, IntPtr.Zero, directory, ref startup, out child)) throw new Win32Exception();
+                var process = Process.GetProcessById((int)child.ProcessId);
+                // Pin the process handle so PID reuse cannot confuse monitoring.
+                IntPtr pinnedHandle = process.Handle;
+                if (ResumeThread(child.Thread) == uint.MaxValue) throw new Win32Exception();
+                resumed = true;
+                return process;
+            } finally {
+                if (!resumed && child.Process != IntPtr.Zero) TerminateProcess(child.Process, 1);
+                if (child.Thread != IntPtr.Zero) CloseHandle(child.Thread);
+                if (child.Process != IntPtr.Zero) CloseHandle(child.Process);
+                if (initialized) DeleteProcThreadAttributeList(attributes);
+                if (attributes != IntPtr.Zero) Marshal.FreeHGlobal(attributes);
+                if (jobList != IntPtr.Zero) Marshal.FreeHGlobal(jobList);
+                if (handleList != IntPtr.Zero) Marshal.FreeHGlobal(handleList);
+                if (input != IntPtr.Zero && input != new IntPtr(-1)) CloseHandle(input);
+                if (output != IntPtr.Zero && output != new IntPtr(-1)) CloseHandle(output);
+                if (errorOutput != IntPtr.Zero && errorOutput != new IntPtr(-1)) CloseHandle(errorOutput);
+            }
+        }
+
+        public static bool Stop(string name) {
+            IntPtr job = OpenJobObject(0x0008, false, name); // JOB_OBJECT_TERMINATE
+            if (job == IntPtr.Zero) {
+                int error = Marshal.GetLastWin32Error();
+                if (error == 2) return false; // Already gone.
+                throw new Win32Exception(error);
+            }
+            try {
+                if (!TerminateJobObject(job, 0)) throw new Win32Exception();
+                return true;
+            } finally { CloseHandle(job); }
+        }
+
+        public void Dispose() {
+            if (handle != IntPtr.Zero) { CloseHandle(handle); handle = IntPtr.Zero; }
+        }
+    }
+}
+'@
+}
+
+function Get-BackendOccupiedPorts {
+    param([int[]]$Ports)
+    # Includes IPv4/IPv6 and wildcard listeners; never kills by port number.
+    $listening = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
+    @($listening | Where-Object { $_.Port -in $Ports } | ForEach-Object { $_.Port } | Sort-Object -Unique)
+}
+
+# stop-all.ps1 imports only these helpers; no environment files are read.
+if ($LoadJobSupportOnly) { return }
 
 $ErrorActionPreference = 'Stop'
 $services = @(
@@ -14,6 +198,22 @@ $services = @(
 )
 $started = @()
 $savedEnvironment = @{}
+$job = $null
+$stopSignal = $null
+$launcherMutex = $null
+$ownsMutex = $false
+$statePath = Join-Path $PSScriptRoot '.backend-runtime.json'
+$state = $null
+
+function Save-BackendState {
+    $temporaryPath = "$statePath.tmp"
+    [IO.File]::WriteAllText($temporaryPath, ($state | ConvertTo-Json -Depth 5))
+    if (Test-Path -LiteralPath $statePath) {
+        [IO.File]::Replace($temporaryPath, $statePath, [NullString]::Value)
+    } else {
+        [IO.File]::Move($temporaryPath, $statePath)
+    }
+}
 
 function Set-LaunchEnvironment([string]$Name, [string]$Value) {
     if (-not $savedEnvironment.ContainsKey($Name)) {
@@ -49,6 +249,14 @@ function Test-ServiceReady($Service) {
 }
 
 try {
+    # Serialize launchers for this checkout, including during preflight.
+    $hash = [Security.Cryptography.SHA256]::Create()
+    try { $rootHash = [BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($PSScriptRoot.ToLowerInvariant()))).Replace('-', '') }
+    finally { $hash.Dispose() }
+    $launcherMutex = New-Object Threading.Mutex($false, "Local\ContactTx-Launcher-$rootHash")
+    try { $ownsMutex = $launcherMutex.WaitOne(0) }
+    catch [Threading.AbandonedMutexException] { $ownsMutex = $true }
+    if (-not $ownsMutex) { throw 'This backend already has an active launcher. Use stop-all.bat first.' }
     # Optional local secrets file. Parse assignments as data, never execute them.
     $envFile = Join-Path $PSScriptRoot '.env'
     if (Test-Path -LiteralPath $envFile) {
@@ -78,19 +286,31 @@ try {
     $java = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin/java.exe' } else { (Get-Command java.exe -ErrorAction Stop).Source }
     if (-not (Test-Path -LiteralPath $java)) { throw 'Java was not found. Set JAVA_HOME to your JDK 24 installation.' }
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'mvnw.cmd'))) { throw 'mvnw.cmd is missing.' }
-    foreach ($service in $services) {
-        if (Test-Port $service.Port) { throw "Port $($service.Port) is already in use. Stop the existing service before launching all services." }
-    }
+    $occupied = @(Get-BackendOccupiedPorts ($services | ForEach-Object { $_.Port }))
+    if ($occupied.Count) { throw "Ports already in use: $($occupied -join ', '). Use stop-all.bat for a managed launch. Older/unrelated processes must be stopped separately." }
     if ($Check) {
         Write-Host 'Preflight passed: environment, Java location, Maven wrapper, and ports checked. Database and Java version are not checked.'
         return
     }
 
+    Initialize-BackendJobSupport
+    $jobName = 'Local\ContactTx-' + [Guid]::NewGuid().ToString('N')
+    $job = New-Object ContactTx.LauncherJob($jobName)
+    $stopSignal = New-Object Threading.EventWaitHandle($false, ([Threading.EventResetMode]::ManualReset), "$jobName-Stop")
+    $launcher = [Diagnostics.Process]::GetCurrentProcess()
+    $state = @{
+        Version = 1; Root = $PSScriptRoot; JobName = $jobName
+        LauncherId = $PID; LauncherStartTicks = $launcher.StartTime.ToUniversalTime().Ticks.ToString()
+        Ports = @($services | ForEach-Object { $_.Port }); Processes = @()
+    }
+    Save-BackendState
+
     $logDirectory = Join-Path $PSScriptRoot ('logs/' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
     New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
     Write-Host "Logs: $logDirectory"
-    Write-Host 'Keep this window open. Press Ctrl+C to stop all services started here.'
+    Write-Host 'Close this window, press Ctrl+C, or run stop-all.bat to stop this backend.'
     foreach ($service in $services) {
+        if ($stopSignal.WaitOne(0)) { throw 'Stop requested.' }
         Write-Host "Starting $($service.Module) on port $($service.Port)..."
         $module = $service.Module
         $escapedRoot = $PSScriptRoot.Replace("'", "''")
@@ -99,12 +319,18 @@ try {
         } elseif ($module -ne 'user-service') {
             'Remove-Item Env:JWT_PRIVATE_KEY -ErrorAction SilentlyContinue'
         } else { '' }
+        $outputPath = Join-Path $logDirectory "$module.log"
+        $errorPath = Join-Path $logDirectory "$module.error.log"
         $command = "Set-Location -LiteralPath '$escapedRoot'; $stripSecrets; & '.\mvnw.cmd' -B -pl '$module' spring-boot:run '-Dspring-boot.run.arguments=--server.port=$($service.Port)'; exit `$LASTEXITCODE"
         $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-        $process = Start-Process powershell.exe -WindowStyle Hidden -PassThru -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded -RedirectStandardOutput (Join-Path $logDirectory "$module.log") -RedirectStandardError (Join-Path $logDirectory "$module.error.log")
+        $shellPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $process = $job.Start($shellPath, "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encoded", $PSScriptRoot, $outputPath, $errorPath)
         $started += @{ Process = $process; Module = $module }
+        $state.Processes += @{ Id = $process.Id; StartTicks = $process.StartTime.ToUniversalTime().Ticks.ToString(); Module = $module }
+        Save-BackendState
         $deadline = (Get-Date).AddSeconds($StartupTimeoutSeconds)
         while ($true) {
+            if ($stopSignal.WaitOne(0)) { throw 'Stop requested.' }
             foreach ($entry in $started) {
                 if ($entry.Process.HasExited) { throw "$($entry.Module) exited. Check its logs in $logDirectory" }
             }
@@ -116,24 +342,44 @@ try {
     }
     Write-Host 'All five services are ready. Gateway: http://localhost:8080 | Eureka: http://localhost:8761'
     while ($true) {
+        if ($stopSignal.WaitOne(0)) { throw 'Stop requested.' }
         foreach ($entry in $started) {
             if ($entry.Process.HasExited) { throw "$($entry.Module) exited. Check its logs in $logDirectory" }
         }
         Start-Sleep -Seconds 2
     }
 } catch {
-    Write-Host "Startup failed: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
-} finally {
-    # Stop only process trees created by this invocation, in reverse order.
-    for ($index = $started.Count - 1; $index -ge 0; $index--) {
-        $entry = $started[$index]
-        if (-not $entry.Process.HasExited) {
-            Write-Host "Stopping $($entry.Module)..."
-            & taskkill.exe /PID $entry.Process.Id /T /F 2>&1 | Out-Null
-        }
+    if ($stopSignal -and $stopSignal.WaitOne(0)) {
+        Write-Host 'Backend shutdown requested.'
+    } else {
+        Write-Host "Launcher failed: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
     }
-    foreach ($name in $savedEnvironment.Keys) {
-        [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name], 'Process')
+} finally {
+    # Kernel-level cleanup remains effective even when this finally is bypassed.
+    if ($job) { $job.Dispose() }
+    try {
+        if ($state) {
+            $shutdownDeadline = (Get-Date).AddSeconds(10)
+            do {
+                $remainingPorts = @(Get-BackendOccupiedPorts $state.Ports)
+                if (-not $remainingPorts.Count) { break }
+                Start-Sleep -Milliseconds 200
+            } while ((Get-Date) -lt $shutdownDeadline)
+            if ($remainingPorts.Count) {
+                Write-Warning "Still listening on ports: $($remainingPorts -join ', '). These may belong to other processes; no unrelated process was stopped."
+            } else { Write-Host 'Backend stopped; all five service ports are free.' }
+            if ((Test-Path -LiteralPath $statePath) -and ((Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json).JobName -eq $state.JobName)) {
+                Remove-Item -LiteralPath $statePath -Force
+            }
+        }
+    } finally {
+        if ($stopSignal) { $stopSignal.Dispose() }
+        foreach ($entry in $started) { $entry.Process.Dispose() }
+        foreach ($name in $savedEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name], 'Process')
+        }
+        if ($ownsMutex) { $launcherMutex.ReleaseMutex() }
+        if ($launcherMutex) { $launcherMutex.Dispose() }
     }
 }
