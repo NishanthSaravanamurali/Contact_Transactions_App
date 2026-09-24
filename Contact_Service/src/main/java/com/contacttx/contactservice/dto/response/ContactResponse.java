@@ -71,6 +71,14 @@ public class ContactResponse {
         return linkedToRegisteredUser;
     }
 
+    public Long getLinkedUserId() {
+        return linkedUserId;
+    }
+
+    public void setLinkedUserId(Long linkedUserId) {
+        this.linkedUserId = linkedUserId;
+    }
+
     public void setLinkedToRegisteredUser(boolean linkedToRegisteredUser) {
         this.linkedToRegisteredUser = linkedToRegisteredUser;
     }

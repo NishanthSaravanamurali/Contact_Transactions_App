@@ -1,0 +1,1101 @@
+{
+  "info": {
+    "_postman_id": "85668f2c-3970-47b4-ba58-2ba5acf60aae",
+    "name": "Contact Transactions - Integration",
+    "description": "Import this collection into Postman, start Discovery, User, Contact, Transaction, and API Gateway, then run the requests in order. Normal client requests use the API Gateway. Contact requests use Contact Service directly because GatewaySecurityConfig currently denies /api/v1/contacts/** even though a route exists. Variables and login tokens are captured automatically. Do not run the final destructive folder unless you intentionally want to change credentials or deactivate the test user.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "57924475",
+    "_collection_link": "https://go.postman.co/collection/57924475-85668f2c-3970-47b4-ba58-2ba5acf60aae?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "01 - Gateway authentication and users",
+      "item": [
+        {
+          "name": "Register Alice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('aliceUserId', body.userId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alice Tester\",\n  \"email\": \"{{aliceEmail}}\",\n  \"password\": \"{{alicePassword}}\",\n  \"mobileNo\": \"{{alicePhone}}\",\n  \"dateOfBirth\": \"1995-05-20\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register Bob",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('bobUserId', body.userId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bob Tester\",\n  \"email\": \"{{bobEmail}}\",\n  \"password\": \"{{bobPassword}}\",\n  \"mobileNo\": \"{{bobPhone}}\",\n  \"dateOfBirth\": \"1994-06-15\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login Alice (stores Alice token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('aliceAccessToken', pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{aliceEmail}}\",\n  \"password\": \"{{alicePassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login Bob (stores Bob token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('bobAccessToken', pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{bobEmail}}\",\n  \"password\": \"{{bobPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alice profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/users/me",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Alice profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alice Updated\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/users/me",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout Alice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Contacts (direct service until Gateway security is fixed)",
+      "item": [
+        {
+          "name": "Create Bob as Alice's linked contact",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Created', () => pm.response.to.have.status(201));\npm.collectionVariables.set('bobContactId', pm.response.json().contactId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contactName\": \"Bob Tester\",\n  \"contactPhone\": \"{{bobPhone}}\",\n  \"linkToRegisteredUser\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/contacts",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "contacts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Alice's contacts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/contacts",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "contacts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Bob contact",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/contacts/{{bobContactId}}",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "contacts",
+                "{{bobContactId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Bob contact",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contactName\": \"Bob Updated\",\n  \"contactPhone\": \"{{bobPhone}}\",\n  \"linkToRegisteredUser\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/contacts/{{bobContactId}}",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "contacts",
+                "{{bobContactId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Bob contact (run last if testing contact deletion)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/contacts/{{bobContactId}}",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "contacts",
+                "{{bobContactId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Wallet, accounts, and payments through Gateway",
+      "item": [
+        {
+          "name": "Get Alice wallet balance (wallet should be provisioned at registration)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/wallet/getBalance",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "wallet",
+                "getBalance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Alice account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('aliceAccountId', pm.response.json().accountId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/accounts/addAccount",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "accounts",
+                "addAccount"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Alice accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/accounts/getAccounts",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "accounts",
+                "getAccounts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alice account balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/accounts/getBalance?accountId={{aliceAccountId}}",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "accounts",
+                "getBalance"
+              ],
+              "query": [
+                {
+                  "key": "accountId",
+                  "value": "{{aliceAccountId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Top up Alice wallet from her account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Top-up request accepted', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": {{aliceAccountId}},\n  \"amount\": 1000.00\n}",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/wallet/addFunds",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "wallet",
+                "addFunds"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alice wallet balance after top-up",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/wallet/getBalance",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "wallet",
+                "getBalance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Bob wallet balance before payment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/wallet/getBalance",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "wallet",
+                "getBalance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Pay Bob from Alice wallet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Payment request accepted', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));\nconst body = pm.response.json();\nif (body.transactionId) pm.collectionVariables.set('transactionId', body.transactionId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiverUserId\": {{bobUserId}},\n  \"amount\": 100.00\n}",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/wallet/makePayment",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "wallet",
+                "makePayment"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Bob wallet balance after payment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/wallet/getBalance",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "wallet",
+                "getBalance"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Alice transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/transactions/getAll?page=0&size=20",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "transactions",
+                "getAll"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get payment by transaction ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/transactions/get/{{transactionId}}",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "transactions",
+                "get",
+                "{{transactionId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Insufficient funds (expected completed HTTP response with FAILED status)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Request processed', () => pm.response.to.have.status(200));",
+                  "pm.test('Transaction is failed', () => pm.expect(pm.response.json().status).to.eql('FAILED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiverUserId\": {{bobUserId}},\n  \"amount\": 999999999.00\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/money/wallet/makePayment",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "money",
+                "wallet",
+                "makePayment"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Internal and destructive operations (do not run in normal testing)",
+      "item": [
+        {
+          "name": "Get Alice status (User Service internal API)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "{{internalServiceToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{userServiceBaseUrl}}/internal/v1/users/{{aliceUserId}}/status",
+              "host": [
+                "{{userServiceBaseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "v1",
+                "users",
+                "{{aliceUserId}}",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Bob by phone (User Service internal API)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "{{internalServiceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobileNo\": \"{{bobPhone}}\"\n}"
+            },
+            "url": {
+              "raw": "{{userServiceBaseUrl}}/internal/v1/users/resolve",
+              "host": [
+                "{{userServiceBaseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "v1",
+                "users",
+                "resolve"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Alice wallet directly (internal; only if provisioning failed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Internal-Service-Token",
+                "value": "{{internalServiceToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{aliceUserId}}\n}"
+            },
+            "url": {
+              "raw": "{{transactionServiceBaseUrl}}/internal/v1/wallets",
+              "host": [
+                "{{transactionServiceBaseUrl}}"
+              ],
+              "path": [
+                "internal",
+                "v1",
+                "wallets"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Alice password (invalidates normal test password)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{alicePassword}}\",\n  \"newPassword\": \"{{aliceNewPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/users/me/password",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "password"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Alice account (irreversible test-data cleanup)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gatewayBaseUrl}}/api/v1/users/me",
+              "host": [
+                "{{gatewayBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('testRunId')) {",
+          "    const runId = Date.now().toString();",
+          "    const phoneSeed = (Number(runId.slice(-9)) % 1000000000).toString().padStart(9, '0');",
+          "    pm.collectionVariables.set('testRunId', runId);",
+          "    pm.collectionVariables.set('aliceEmail', `alice.${runId}@example.test`);",
+          "    pm.collectionVariables.set('bobEmail', `bob.${runId}@example.test`);",
+          "    pm.collectionVariables.set('alicePhone', `9${phoneSeed}`);",
+          "    pm.collectionVariables.set('bobPhone', `8${phoneSeed}`);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "gatewayBaseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "userServiceBaseUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "contactServiceBaseUrl",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "transactionServiceBaseUrl",
+      "value": "http://localhost:8083"
+    },
+    {
+      "key": "internalServiceToken",
+      "value": ""
+    },
+    {
+      "key": "alicePassword",
+      "value": "Alice@Test1234"
+    },
+    {
+      "key": "bobPassword",
+      "value": "Bob@Test123456"
+    },
+    {
+      "key": "aliceNewPassword",
+      "value": "Alice@New12345"
+    },
+    {
+      "key": "aliceEmail",
+      "value": ""
+    },
+    {
+      "key": "bobEmail",
+      "value": ""
+    },
+    {
+      "key": "alicePhone",
+      "value": ""
+    },
+    {
+      "key": "bobPhone",
+      "value": ""
+    },
+    {
+      "key": "aliceUserId",
+      "value": ""
+    },
+    {
+      "key": "bobUserId",
+      "value": ""
+    },
+    {
+      "key": "aliceAccessToken",
+      "secret": true
+    },
+    {
+      "key": "bobAccessToken",
+      "secret": true
+    },
+    {
+      "key": "aliceAccountId",
+      "value": ""
+    },
+    {
+      "key": "bobContactId",
+      "value": ""
+    },
+    {
+      "key": "transactionId",
+      "value": ""
+    },
+    {
+      "key": "testRunId",
+      "value": ""
+    }
+  ]
+}

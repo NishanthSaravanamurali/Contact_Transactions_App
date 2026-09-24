@@ -50,7 +50,7 @@ class ContactMapperTest {
     }
 
     @Test
-    void mapsResponseWithoutOwnerOrLinkedUserIdentifiers() {
+    void mapsResponseWithLinkedRecipientForPayments() {
         Contact contact = new Contact(10L, 20L, "Sam Taylor", 9_876_543_210L);
 
         ContactResponse response = contactMapper.toResponse(contact);
@@ -58,6 +58,7 @@ class ContactMapperTest {
         assertThat(response.getContactName()).isEqualTo("Sam Taylor");
         assertThat(response.getContactPhone()).isEqualTo("9876543210");
         assertThat(response.isLinkedToRegisteredUser()).isTrue();
+        assertThat(response.getLinkedUserId()).isEqualTo(20L);
     }
 
     @Test
@@ -73,6 +74,7 @@ class ContactMapperTest {
 
         assertThat(contact.getContactPhone()).isEqualTo(123_456_789L);
         assertThat(response.getContactPhone()).isEqualTo("123456789");
+        assertThat(response.getLinkedUserId()).isNull();
     }
 
     @Test

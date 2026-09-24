@@ -38,7 +38,7 @@ public class ContactMapper {
     }
 
     public ContactResponse toResponse(Contact contact) {
-        return new ContactResponse(
+        ContactResponse response = new ContactResponse(
                 contact.getContactId(),
                 contact.getContactName(),
                 String.valueOf(contact.getContactPhone()),
@@ -48,6 +48,9 @@ public class ContactMapper {
                 contact.getCreatedAt(),
                 contact.getUpdatedAt()
         );
+        // The authenticated owner's frontend needs this ID for makePayment.
+        response.setLinkedUserId(contact.getLinkedUserId());
+        return response;
     }
 
     private Long toPhoneNumber(String contactPhone) {
