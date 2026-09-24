@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class ContactMapper {
 
-    private static final String TEN_DIGIT_PHONE_PATTERN = "[0-9]{10}";
+    private static final String TEN_DIGIT_PHONE_PATTERN = "[6-9][0-9]{9}";
 
     public Contact toEntity(
             CreateContactRequest request,
@@ -32,6 +32,9 @@ public class ContactMapper {
         contact.setContactName(request.getContactName());
         contact.setContactPhone(toPhoneNumber(request.getContactPhone()));
         contact.setLinkedUserId(linkedUserId);
+        if (request.getFavorite() != null) {
+            contact.setFavorite(request.getFavorite());
+        }
     }
 
     public ContactResponse toResponse(Contact contact) {
@@ -39,7 +42,9 @@ public class ContactMapper {
                 contact.getContactId(),
                 contact.getContactName(),
                 String.valueOf(contact.getContactPhone()),
+                contact.getLinkedUserId(),
                 contact.getLinkedUserId() != null,
+                contact.isFavorite(),
                 contact.getCreatedAt(),
                 contact.getUpdatedAt()
         );
