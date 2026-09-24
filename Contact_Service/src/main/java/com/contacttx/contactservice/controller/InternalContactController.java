@@ -22,9 +22,9 @@ public class InternalContactController {
     @PostMapping("/payment-eligibility")
     public PaymentEligibilityResponse paymentEligibility(
             @Valid @RequestBody PaymentEligibilityRequest request) {
-        return new PaymentEligibilityResponse(contactService.isPaymentEligible(
+        return contactService.checkPaymentEligibility(
                 request.getSenderUserId(),
                 request.getReceiverUserId()
-        ));
+        );
     }
 }
