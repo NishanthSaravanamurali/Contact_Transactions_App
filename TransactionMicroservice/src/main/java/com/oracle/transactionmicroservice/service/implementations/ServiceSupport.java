@@ -42,6 +42,7 @@ final class ServiceSupport {
                 transaction.getSourceAccount() == null ? null
                         : transaction.getSourceAccount().getAccountId(),
                 transaction.getDestinationWallet().getWalletId(),
+                transaction.getDestinationWallet().getUserId(),
                 transaction.getAmount(), transaction.getStatus(),
                 transaction.getCreatedAt(), transaction.getCompletedAt());
     }
