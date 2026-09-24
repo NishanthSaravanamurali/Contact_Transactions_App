@@ -7,6 +7,7 @@ public class ContactResponse {
     private Long contactId;
     private String contactName;
     private String contactPhone;
+    private Long linkedUserId;
     private boolean linkedToRegisteredUser;
     private boolean favorite;
     private LocalDateTime createdAt;
@@ -19,6 +20,7 @@ public class ContactResponse {
             Long contactId,
             String contactName,
             String contactPhone,
+            Long linkedUserId,
             boolean linkedToRegisteredUser,
             boolean favorite,
             LocalDateTime createdAt,
@@ -26,6 +28,7 @@ public class ContactResponse {
         this.contactId = contactId;
         this.contactName = contactName;
         this.contactPhone = contactPhone;
+        this.linkedUserId = linkedUserId;
         this.linkedToRegisteredUser = linkedToRegisteredUser;
         this.favorite = favorite;
         this.createdAt = createdAt;
@@ -54,6 +57,14 @@ public class ContactResponse {
 
     public void setContactPhone(String contactPhone) {
         this.contactPhone = contactPhone;
+    }
+
+    public Long getLinkedUserId() {
+        return linkedUserId;
+    }
+
+    public void setLinkedUserId(Long linkedUserId) {
+        this.linkedUserId = linkedUserId;
     }
 
     public boolean isLinkedToRegisteredUser() {
