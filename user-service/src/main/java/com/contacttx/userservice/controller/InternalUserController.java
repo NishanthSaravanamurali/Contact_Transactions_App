@@ -1,7 +1,9 @@
 package com.contacttx.userservice.controller;
 
 import com.contacttx.userservice.dto.request.ResolveUserRequest;
+import com.contacttx.userservice.dto.request.DisplayNamesRequest;
 import com.contacttx.userservice.dto.response.InternalUserStatusResponse;
+import com.contacttx.userservice.dto.response.UserDisplayNamesResponse;
 import com.contacttx.userservice.service.InternalUserService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -32,5 +34,11 @@ public class InternalUserController {
     public ResponseEntity<InternalUserStatusResponse> resolveByMobile(
             @Valid @RequestBody ResolveUserRequest request) {
         return ResponseEntity.ok(internalUserService.resolveByMobile(request));
+    }
+
+    @PostMapping("/display-names")
+    public ResponseEntity<UserDisplayNamesResponse> resolveDisplayNames(
+            @Valid @RequestBody DisplayNamesRequest request) {
+        return ResponseEntity.ok(internalUserService.resolveDisplayNames(request));
     }
 }
