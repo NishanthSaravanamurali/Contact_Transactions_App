@@ -47,7 +47,7 @@ public class ContactService {
             Long ownerUserId,
             CreateContactRequest request) {
 
-        assertPhoneIsAvailable(request.getContactPhone());
+        assertPhoneIsAvailable(ownerUserId, request.getContactPhone());
 
         Long linkedUserId = resolveLinkedUserId(
                 ownerUserId,
@@ -83,7 +83,11 @@ public class ContactService {
             UpdateContactRequest request) {
 
         Contact contact = findOwnedContact(ownerUserId, contactId);
-        assertPhoneIsAvailableForUpdate(request.getContactPhone(), contactId);
+        assertPhoneIsAvailableForUpdate(
+                ownerUserId,
+                request.getContactPhone(),
+                contactId
+        );
         Long linkedUserId = resolveLinkedUserId(
                 ownerUserId,
                 request.getContactPhone(),
@@ -151,14 +155,20 @@ public class ContactService {
                 .orElseThrow(ContactNotFoundException::new);
     }
 
-    private void assertPhoneIsAvailable(String contactPhone) {
-        if (contactRepository.existsByContactPhone(Long.valueOf(contactPhone))) {
+    private void assertPhoneIsAvailable(Long ownerUserId, String contactPhone) {
+        if (contactRepository.existsByOwnerUserIdAndContactPhone(
+                ownerUserId,
+                Long.valueOf(contactPhone))) {
             throw new DuplicateContactPhoneException();
         }
     }
 
-    private void assertPhoneIsAvailableForUpdate(String contactPhone, Long contactId) {
-        if (contactRepository.existsByContactPhoneAndContactIdNot(
+    private void assertPhoneIsAvailableForUpdate(
+            Long ownerUserId,
+            String contactPhone,
+            Long contactId) {
+        if (contactRepository.existsByOwnerUserIdAndContactPhoneAndContactIdNot(
+                ownerUserId,
                 Long.valueOf(contactPhone),
                 contactId)) {
             throw new DuplicateContactPhoneException();

@@ -18,9 +18,12 @@ public interface ContactRepository extends Repository<Contact, Long> {
             Long ownerUserId,
             Long linkedUserId);
 
-    boolean existsByContactPhone(Long contactPhone);
+    boolean existsByOwnerUserIdAndContactPhone(Long ownerUserId, Long contactPhone);
 
-    boolean existsByContactPhoneAndContactIdNot(Long contactPhone, Long contactId);
+    boolean existsByOwnerUserIdAndContactPhoneAndContactIdNot(
+            Long ownerUserId,
+            Long contactPhone,
+            Long contactId);
 
     long deleteByContactIdAndOwnerUserId(Long contactId, Long ownerUserId);
 }

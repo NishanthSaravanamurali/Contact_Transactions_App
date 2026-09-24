@@ -8,6 +8,7 @@ import com.contacttx.contactservice.dto.response.ContactResponse;
 import com.contacttx.contactservice.dto.response.PaymentEligibilityReason;
 import com.contacttx.contactservice.entity.Contact;
 import com.contacttx.contactservice.exception.ContactNotFoundException;
+import com.contacttx.contactservice.exception.DuplicateContactPhoneException;
 import com.contacttx.contactservice.exception.LinkedUserInactiveException;
 import com.contacttx.contactservice.exception.LinkedUserNotFoundException;
 import com.contacttx.contactservice.exception.SelfLinkNotAllowedException;
@@ -85,10 +86,79 @@ class ContactServiceTest {
         assertNull(savedContact.getLinkedUserId());
         assertEquals("Sam Taylor", savedContact.getContactName());
         assertEquals(9_876_543_210L, savedContact.getContactPhone());
+        assertFalse(savedContact.isFavorite());
+        assertFalse(response.isFavorite());
         assertFalse(response.isLinkedToRegisteredUser());
         verifyNoInteractions(userServiceClient);
         verify(entityManager).flush();
         verify(entityManager).refresh(savedContact);
+    }
+
+    @Test
+    void createContactPersistsFavoriteWhenRequested() {
+        CreateContactRequest request = new CreateContactRequest(
+                "Sam Taylor",
+                "9876543210",
+                false,
+                true
+        );
+        when(contactRepository.save(any(Contact.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ContactResponse response = contactService.createContact(OWNER_USER_ID, request);
+
+        ArgumentCaptor<Contact> contactCaptor = ArgumentCaptor.forClass(Contact.class);
+        verify(contactRepository).save(contactCaptor.capture());
+        assertTrue(contactCaptor.getValue().isFavorite());
+        assertTrue(response.isFavorite());
+    }
+
+    @Test
+    void createContactRejectsDuplicatePhoneForTheSameOwner() {
+        CreateContactRequest request = new CreateContactRequest(
+                "Sam Taylor",
+                "9876543210",
+                false
+        );
+        when(contactRepository.existsByOwnerUserIdAndContactPhone(
+                OWNER_USER_ID,
+                9_876_543_210L))
+                .thenReturn(true);
+
+        assertThrows(
+                DuplicateContactPhoneException.class,
+                () -> contactService.createContact(OWNER_USER_ID, request)
+        );
+
+        verify(contactRepository).existsByOwnerUserIdAndContactPhone(
+                OWNER_USER_ID,
+                9_876_543_210L
+        );
+        verify(contactRepository, never()).save(any(Contact.class));
+        verifyNoInteractions(userServiceClient, entityManager);
+    }
+
+    @Test
+    void createContactScopesThePhoneCheckToTheOwner() {
+        CreateContactRequest request = new CreateContactRequest(
+                "Sam Taylor",
+                "9876543210",
+                false
+        );
+        when(contactRepository.existsByOwnerUserIdAndContactPhone(
+                OWNER_USER_ID,
+                9_876_543_210L))
+                .thenReturn(false);
+        when(contactRepository.save(any(Contact.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        contactService.createContact(OWNER_USER_ID, request);
+
+        verify(contactRepository).existsByOwnerUserIdAndContactPhone(
+                OWNER_USER_ID,
+                9_876_543_210L
+        );
+        verify(contactRepository).save(any(Contact.class));
     }
 
     @Test
@@ -241,6 +311,37 @@ class ContactServiceTest {
         verify(contactRepository, never()).save(any(Contact.class));
         verify(entityManager).flush();
         verify(entityManager).refresh(contact);
+    }
+
+    @Test
+    void updateContactRejectsAnotherOwnedContactWithTheSamePhone() {
+        Contact contact = new Contact(OWNER_USER_ID, null, "Old Name", 9_000_000_000L);
+        UpdateContactRequest request = new UpdateContactRequest(
+                "New Name",
+                "9123456789",
+                false
+        );
+        when(contactRepository.findByContactIdAndOwnerUserId(CONTACT_ID, OWNER_USER_ID))
+                .thenReturn(Optional.of(contact));
+        when(contactRepository.existsByOwnerUserIdAndContactPhoneAndContactIdNot(
+                OWNER_USER_ID,
+                9_123_456_789L,
+                CONTACT_ID))
+                .thenReturn(true);
+
+        assertThrows(
+                DuplicateContactPhoneException.class,
+                () -> contactService.updateContact(OWNER_USER_ID, CONTACT_ID, request)
+        );
+
+        assertEquals("Old Name", contact.getContactName());
+        assertEquals(9_000_000_000L, contact.getContactPhone());
+        verify(contactRepository).existsByOwnerUserIdAndContactPhoneAndContactIdNot(
+                OWNER_USER_ID,
+                9_123_456_789L,
+                CONTACT_ID
+        );
+        verifyNoInteractions(userServiceClient, entityManager);
     }
 
     @Test
