@@ -21,6 +21,8 @@ public class UpdateContactRequest {
     @NotNull(message = "linkToRegisteredUser is required")
     private Boolean linkToRegisteredUser;
 
+    private Boolean favorite;
+
     public UpdateContactRequest() {
     }
 
@@ -31,6 +33,15 @@ public class UpdateContactRequest {
         setContactName(contactName);
         this.contactPhone = contactPhone;
         this.linkToRegisteredUser = linkToRegisteredUser;
+    }
+
+    public UpdateContactRequest(
+            String contactName,
+            String contactPhone,
+            Boolean linkToRegisteredUser,
+            Boolean favorite) {
+        this(contactName, contactPhone, linkToRegisteredUser);
+        this.favorite = favorite;
     }
 
     public String getContactName() {
@@ -55,5 +66,13 @@ public class UpdateContactRequest {
 
     public void setLinkToRegisteredUser(Boolean linkToRegisteredUser) {
         this.linkToRegisteredUser = linkToRegisteredUser;
+    }
+
+    public Boolean getFavorite() {
+        return favorite;
+    }
+
+    public void setFavorite(Boolean favorite) {
+        this.favorite = favorite;
     }
 }

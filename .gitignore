@@ -8,3 +8,4 @@
 *.pem
 *.key
 logs/
+.backend-runtime.json*

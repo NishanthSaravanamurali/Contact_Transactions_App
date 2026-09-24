@@ -73,10 +73,31 @@ moving to the next service. Transaction has no health endpoint, so its readiness
 check uses its listening port and Eureka UP registration. Local ports and the
 local Eureka URL are enforced for this launcher.
 
-Keep the launcher window open; use **Ctrl+C** to stop its services in reverse
-order. Startup failures/timeouts also stop services launched by this invocation.
+Keep the launcher window open. Use **Ctrl+C**, close the launcher window, or
+double-click **`stop-all.bat`** from another window to stop its services.
+Startup failures/timeouts also stop the launched services. Shutdown terminates
+the managed process group together; it is not a graceful Spring shutdown.
 Existing occupied ports cause an error before anything starts. Logs are saved in
 `logs/<timestamp>/`, with separate output and error files per service.
+
+The launcher requires Windows 10/11 and Windows PowerShell. It owns a Windows
+Job Object with kill-on-close enabled. Child shells are created suspended inside
+that job before being resumed, so their Maven/Java descendants remain managed
+even if a parent shell exits. Closing or forcibly terminating the launcher also
+closes its job handle and terminates the managed descendants.
+See [Microsoft's process-in-job explanation](https://devblogs.microsoft.com/oldnewthing/20230209-00/?p=107812/).
+
+The ignored `.backend-runtime.json` file records the unique job name, launcher
+PID/creation time, and service shell PIDs/creation times (no secrets). The stop
+script checks launcher identity and terminates only that job; it never kills all
+Java processes or kills by port. A per-folder mutex prevents duplicate launchers.
+Normal shutdown checks that ports were released. Forced window closure may
+leave a stale state file; the next launch safely replaces it.
+
+Processes left over from the **old launcher** are not part of the new job and
+must be identified and stopped separately once. If `stop-all.bat` reports ports
+still occupied, it leaves those untracked processes alone. Services started in
+IntelliJ likewise remain under IntelliJ's control.
 
 Use `.\start-all.bat -Check` for environment/path/port checks without starting
 services, or `.\start-all.bat -StartupTimeoutSeconds 600` to allow more time for
