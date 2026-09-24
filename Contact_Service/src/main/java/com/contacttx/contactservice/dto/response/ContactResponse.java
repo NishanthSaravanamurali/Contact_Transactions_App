@@ -8,7 +8,6 @@ public class ContactResponse {
     private String contactName;
     private String contactPhone;
     private boolean linkedToRegisteredUser;
-    private boolean favorite;
     private Long linkedUserId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
