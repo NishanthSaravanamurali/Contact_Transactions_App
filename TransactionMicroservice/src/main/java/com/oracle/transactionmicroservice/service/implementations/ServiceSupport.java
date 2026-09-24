@@ -9,6 +9,8 @@ import com.oracle.transactionmicroservice.entity.Wallet;
 import com.oracle.transactionmicroservice.exception.ForbiddenOperationException;
 import com.oracle.transactionmicroservice.exception.ResourceNotFoundException;
 
+import java.util.Map;
+
 final class ServiceSupport {
     private ServiceSupport() {}
 
@@ -35,14 +37,27 @@ final class ServiceSupport {
     }
 
     static TransactionResponse response(Transaction transaction) {
+        return response(transaction, Map.of());
+    }
+
+    static TransactionResponse response(
+            Transaction transaction,
+            Map<Long, String> displayNames
+    ) {
+        Long sourceUserId = transaction.getSourceWallet() == null ? null
+                : transaction.getSourceWallet().getUserId();
+        Long destinationUserId = transaction.getDestinationWallet().getUserId();
         return new TransactionResponse(
                 transaction.getTransactionId(), transaction.getTransactionType(),
                 transaction.getSourceWallet() == null ? null
                         : transaction.getSourceWallet().getWalletId(),
+                sourceUserId,
+                sourceUserId == null ? null : displayNames.get(sourceUserId),
                 transaction.getSourceAccount() == null ? null
                         : transaction.getSourceAccount().getAccountId(),
                 transaction.getDestinationWallet().getWalletId(),
-                transaction.getDestinationWallet().getUserId(),
+                destinationUserId,
+                displayNames.get(destinationUserId),
                 transaction.getAmount(), transaction.getStatus(),
                 transaction.getCreatedAt(), transaction.getCompletedAt());
     }
