@@ -103,7 +103,19 @@ public class UserServiceOperationGuard implements UserOperationGuard {
                     .retrieve()
                     .body(PaymentEligibilityResponse.class);
 
-            if (response == null || !response.allowed()) {
+            if (response == null) {
+                throw new ForbiddenOperationException(
+                        "Unable to verify the receiver's contact eligibility."
+                );
+            }
+            if (!response.allowed()) {
+                if ("CONTACT_PHONE_MISMATCH".equals(response.reason())) {
+                    throw new ForbiddenOperationException(
+                            "CONTACT_PHONE_MISMATCH",
+                            "This contact’s phone number no longer matches the registered user. "
+                                    + "Update the contact before transferring money."
+                    );
+                }
                 throw new ForbiddenOperationException(
                         "Receiver is not an eligible contact."
                 );
@@ -124,6 +136,6 @@ public class UserServiceOperationGuard implements UserOperationGuard {
     ) {
     }
 
-    private record PaymentEligibilityResponse(boolean allowed) {
+    private record PaymentEligibilityResponse(boolean allowed, String reason) {
     }
 }

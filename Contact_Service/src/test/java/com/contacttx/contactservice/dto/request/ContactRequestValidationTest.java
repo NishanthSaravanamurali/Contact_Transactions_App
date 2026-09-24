@@ -120,6 +120,62 @@ class ContactRequestValidationTest {
     }
 
     @Test
+    void defaultsFavoriteToFalseWhenCreateJsonOmitsIt() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        CreateContactRequest request = objectMapper.readValue(
+                """
+                {
+                  "contactName": "Sam Taylor",
+                  "contactPhone": "9876543210",
+                  "linkToRegisteredUser": true
+                }
+                """,
+                CreateContactRequest.class
+        );
+
+        assertThat(request.getFavorite()).isFalse();
+    }
+
+    @Test
+    void acceptsFavoriteWhenCreateJsonSuppliesIt() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        CreateContactRequest request = objectMapper.readValue(
+                """
+                {
+                  "contactName": "Sam Taylor",
+                  "contactPhone": "9876543210",
+                  "linkToRegisteredUser": true,
+                  "favorite": true
+                }
+                """,
+                CreateContactRequest.class
+        );
+
+        assertThat(request.getFavorite()).isTrue();
+    }
+
+    @Test
+    void defaultsFavoriteToFalseWhenCreateJsonSuppliesNull() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        CreateContactRequest request = objectMapper.readValue(
+                """
+                {
+                  "contactName": "Sam Taylor",
+                  "contactPhone": "9876543210",
+                  "linkToRegisteredUser": true,
+                  "favorite": null
+                }
+                """,
+                CreateContactRequest.class
+        );
+
+        assertThat(request.getFavorite()).isFalse();
+    }
+
+    @Test
     void rejectsPhoneWhenJsonUsesANumber() {
         ObjectMapper objectMapper = new ObjectMapper();
 

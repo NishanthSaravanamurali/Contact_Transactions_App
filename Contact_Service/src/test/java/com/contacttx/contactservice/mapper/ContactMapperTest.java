@@ -27,9 +27,24 @@ class ContactMapperTest {
         assertThat(contact.getLinkedUserId()).isEqualTo(20L);
         assertThat(contact.getContactName()).isEqualTo("Sam Taylor");
         assertThat(contact.getContactPhone()).isEqualTo(9_876_543_210L);
+        assertThat(contact.isFavorite()).isFalse();
         assertThat(contact.getContactId()).isNull();
         assertThat(contact.getCreatedAt()).isNull();
         assertThat(contact.getUpdatedAt()).isNull();
+    }
+
+    @Test
+    void mapsFavoriteFromCreateRequest() {
+        CreateContactRequest request = new CreateContactRequest(
+                "Sam Taylor",
+                "9876543210",
+                true,
+                true
+        );
+
+        Contact contact = contactMapper.toEntity(request, 10L, 20L);
+
+        assertThat(contact.isFavorite()).isTrue();
     }
 
     @Test

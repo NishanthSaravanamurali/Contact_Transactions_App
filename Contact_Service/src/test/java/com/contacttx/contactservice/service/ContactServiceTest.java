@@ -2,12 +2,13 @@ package com.contacttx.contactservice.service;
 
 import com.contacttx.contactservice.client.UserServiceClient;
 import com.contacttx.contactservice.client.dto.ResolveUserResponse;
-import com.contacttx.contactservice.client.dto.UserStatusResponse;
 import com.contacttx.contactservice.dto.request.CreateContactRequest;
 import com.contacttx.contactservice.dto.request.UpdateContactRequest;
 import com.contacttx.contactservice.dto.response.ContactResponse;
+import com.contacttx.contactservice.dto.response.PaymentEligibilityReason;
 import com.contacttx.contactservice.entity.Contact;
 import com.contacttx.contactservice.exception.ContactNotFoundException;
+import com.contacttx.contactservice.exception.DuplicateContactPhoneException;
 import com.contacttx.contactservice.exception.LinkedUserInactiveException;
 import com.contacttx.contactservice.exception.LinkedUserNotFoundException;
 import com.contacttx.contactservice.exception.SelfLinkNotAllowedException;
@@ -85,10 +86,79 @@ class ContactServiceTest {
         assertNull(savedContact.getLinkedUserId());
         assertEquals("Sam Taylor", savedContact.getContactName());
         assertEquals(9_876_543_210L, savedContact.getContactPhone());
+        assertFalse(savedContact.isFavorite());
+        assertFalse(response.isFavorite());
         assertFalse(response.isLinkedToRegisteredUser());
         verifyNoInteractions(userServiceClient);
         verify(entityManager).flush();
         verify(entityManager).refresh(savedContact);
+    }
+
+    @Test
+    void createContactPersistsFavoriteWhenRequested() {
+        CreateContactRequest request = new CreateContactRequest(
+                "Sam Taylor",
+                "9876543210",
+                false,
+                true
+        );
+        when(contactRepository.save(any(Contact.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ContactResponse response = contactService.createContact(OWNER_USER_ID, request);
+
+        ArgumentCaptor<Contact> contactCaptor = ArgumentCaptor.forClass(Contact.class);
+        verify(contactRepository).save(contactCaptor.capture());
+        assertTrue(contactCaptor.getValue().isFavorite());
+        assertTrue(response.isFavorite());
+    }
+
+    @Test
+    void createContactRejectsDuplicatePhoneForTheSameOwner() {
+        CreateContactRequest request = new CreateContactRequest(
+                "Sam Taylor",
+                "9876543210",
+                false
+        );
+        when(contactRepository.existsByOwnerUserIdAndContactPhone(
+                OWNER_USER_ID,
+                9_876_543_210L))
+                .thenReturn(true);
+
+        assertThrows(
+                DuplicateContactPhoneException.class,
+                () -> contactService.createContact(OWNER_USER_ID, request)
+        );
+
+        verify(contactRepository).existsByOwnerUserIdAndContactPhone(
+                OWNER_USER_ID,
+                9_876_543_210L
+        );
+        verify(contactRepository, never()).save(any(Contact.class));
+        verifyNoInteractions(userServiceClient, entityManager);
+    }
+
+    @Test
+    void createContactScopesThePhoneCheckToTheOwner() {
+        CreateContactRequest request = new CreateContactRequest(
+                "Sam Taylor",
+                "9876543210",
+                false
+        );
+        when(contactRepository.existsByOwnerUserIdAndContactPhone(
+                OWNER_USER_ID,
+                9_876_543_210L))
+                .thenReturn(false);
+        when(contactRepository.save(any(Contact.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        contactService.createContact(OWNER_USER_ID, request);
+
+        verify(contactRepository).existsByOwnerUserIdAndContactPhone(
+                OWNER_USER_ID,
+                9_876_543_210L
+        );
+        verify(contactRepository).save(any(Contact.class));
     }
 
     @Test
@@ -244,6 +314,37 @@ class ContactServiceTest {
     }
 
     @Test
+    void updateContactRejectsAnotherOwnedContactWithTheSamePhone() {
+        Contact contact = new Contact(OWNER_USER_ID, null, "Old Name", 9_000_000_000L);
+        UpdateContactRequest request = new UpdateContactRequest(
+                "New Name",
+                "9123456789",
+                false
+        );
+        when(contactRepository.findByContactIdAndOwnerUserId(CONTACT_ID, OWNER_USER_ID))
+                .thenReturn(Optional.of(contact));
+        when(contactRepository.existsByOwnerUserIdAndContactPhoneAndContactIdNot(
+                OWNER_USER_ID,
+                9_123_456_789L,
+                CONTACT_ID))
+                .thenReturn(true);
+
+        assertThrows(
+                DuplicateContactPhoneException.class,
+                () -> contactService.updateContact(OWNER_USER_ID, CONTACT_ID, request)
+        );
+
+        assertEquals("Old Name", contact.getContactName());
+        assertEquals(9_000_000_000L, contact.getContactPhone());
+        verify(contactRepository).existsByOwnerUserIdAndContactPhoneAndContactIdNot(
+                OWNER_USER_ID,
+                9_123_456_789L,
+                CONTACT_ID
+        );
+        verifyNoInteractions(userServiceClient, entityManager);
+    }
+
+    @Test
     void updateContactCanRemoveExistingLinkWithoutCallingUserService() {
         Contact contact = new Contact(OWNER_USER_ID, 202L, "Old Name", 9_000_000_000L);
         UpdateContactRequest request = new UpdateContactRequest(
@@ -315,42 +416,101 @@ class ContactServiceTest {
     @Test
     void paymentIsEligibleForAnActiveLinkedContact() {
         Long receiverUserId = 202L;
-        when(contactRepository.existsByOwnerUserIdAndLinkedUserId(OWNER_USER_ID, receiverUserId))
-                .thenReturn(true);
-        when(userServiceClient.getUserStatus(receiverUserId))
-                .thenReturn(Optional.of(new UserStatusResponse(receiverUserId, "ACTIVE")));
+        Contact contact = linkedContact(receiverUserId);
+        when(contactRepository.findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
+                OWNER_USER_ID, receiverUserId)).thenReturn(List.of(contact));
+        when(userServiceClient.resolveUser("9876543210"))
+                .thenReturn(Optional.of(new ResolveUserResponse(receiverUserId, "ACTIVE")));
 
-        assertTrue(contactService.isPaymentEligible(OWNER_USER_ID, receiverUserId));
+        var decision = contactService.checkPaymentEligibility(
+                OWNER_USER_ID, receiverUserId);
+
+        assertTrue(decision.isAllowed());
+        assertEquals(PaymentEligibilityReason.ELIGIBLE, decision.getReason());
     }
 
     @Test
     void paymentIsNotEligibleWithoutARegisteredLinkedContact() {
         Long receiverUserId = 202L;
-        when(contactRepository.existsByOwnerUserIdAndLinkedUserId(OWNER_USER_ID, receiverUserId))
-                .thenReturn(false);
+        when(contactRepository.findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
+                OWNER_USER_ID, receiverUserId)).thenReturn(List.of());
 
-        assertFalse(contactService.isPaymentEligible(OWNER_USER_ID, receiverUserId));
+        var decision = contactService.checkPaymentEligibility(
+                OWNER_USER_ID, receiverUserId);
+
+        assertFalse(decision.isAllowed());
+        assertEquals(PaymentEligibilityReason.CONTACT_NOT_FOUND, decision.getReason());
         verifyNoInteractions(userServiceClient);
     }
 
     @Test
     void paymentIsNotEligibleWhenTheLinkedUserIsInactive() {
         Long receiverUserId = 202L;
-        when(contactRepository.existsByOwnerUserIdAndLinkedUserId(OWNER_USER_ID, receiverUserId))
-                .thenReturn(true);
-        when(userServiceClient.getUserStatus(receiverUserId))
-                .thenReturn(Optional.of(new UserStatusResponse(receiverUserId, "INACTIVE")));
+        Contact contact = linkedContact(receiverUserId);
+        when(contactRepository.findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
+                OWNER_USER_ID, receiverUserId)).thenReturn(List.of(contact));
+        when(userServiceClient.resolveUser("9876543210"))
+                .thenReturn(Optional.of(new ResolveUserResponse(receiverUserId, "INACTIVE")));
 
-        assertFalse(contactService.isPaymentEligible(OWNER_USER_ID, receiverUserId));
+        var decision = contactService.checkPaymentEligibility(
+                OWNER_USER_ID, receiverUserId);
+
+        assertFalse(decision.isAllowed());
+        assertEquals(PaymentEligibilityReason.RECEIVER_INACTIVE, decision.getReason());
+    }
+
+    @Test
+    void paymentIsNotEligibleWhenTheSavedPhoneNoLongerResolves() {
+        Long receiverUserId = 202L;
+        Contact contact = linkedContact(receiverUserId);
+        when(contactRepository.findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
+                OWNER_USER_ID, receiverUserId)).thenReturn(List.of(contact));
+        when(userServiceClient.resolveUser("9876543210"))
+                .thenReturn(Optional.empty());
+
+        var decision = contactService.checkPaymentEligibility(
+                OWNER_USER_ID, receiverUserId);
+
+        assertFalse(decision.isAllowed());
+        assertEquals(PaymentEligibilityReason.CONTACT_PHONE_MISMATCH, decision.getReason());
+    }
+
+    @Test
+    void paymentIsNotEligibleWhenTheSavedPhoneNowBelongsToAnotherUser() {
+        Long receiverUserId = 202L;
+        Contact contact = linkedContact(receiverUserId);
+        when(contactRepository.findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
+                OWNER_USER_ID, receiverUserId)).thenReturn(List.of(contact));
+        when(userServiceClient.resolveUser("9876543210"))
+                .thenReturn(Optional.of(new ResolveUserResponse(303L, "ACTIVE")));
+
+        var decision = contactService.checkPaymentEligibility(
+                OWNER_USER_ID, receiverUserId);
+
+        assertFalse(decision.isAllowed());
+        assertEquals(PaymentEligibilityReason.CONTACT_PHONE_MISMATCH, decision.getReason());
     }
 
     @Test
     void paymentIsNotEligibleForTheSameUser() {
-        assertFalse(contactService.isPaymentEligible(OWNER_USER_ID, OWNER_USER_ID));
+        var decision = contactService.checkPaymentEligibility(
+                OWNER_USER_ID, OWNER_USER_ID);
+
+        assertFalse(decision.isAllowed());
+        assertEquals(PaymentEligibilityReason.SELF_PAYMENT, decision.getReason());
         verifyNoInteractions(contactRepository, userServiceClient);
     }
 
     private CreateContactRequest linkedCreateRequest() {
         return new CreateContactRequest("Sam Taylor", "9876543210", true);
+    }
+
+    private Contact linkedContact(Long linkedUserId) {
+        return new Contact(
+                OWNER_USER_ID,
+                linkedUserId,
+                "Sam Taylor",
+                9_876_543_210L
+        );
     }
 }

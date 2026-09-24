@@ -174,8 +174,9 @@ Consequences:
 
 - Contact Service does not receive automatic user-deactivation events.
 - An existing `linked_user_id` can remain stored after that user is deactivated.
-- Operations whose correctness depends on current linked-user status must call
-  `GET /internal/v1/users/{userId}/status` synchronously.
+- Payment eligibility re-resolves the owned contact's stored phone through
+  `POST /internal/v1/users/resolve` and requires the returned user ID to equal
+  `linked_user_id` and the requested receiver ID with status `ACTIVE`.
 - `linked_user_id` is an external reference, not an Oracle foreign key.
 
 This is an explicit consistency tradeoff, not an accidental missing consumer.
@@ -261,10 +262,24 @@ POST /internal/v1/contacts/payment-eligibility
 X-Internal-Service-Token: <INTERNAL_SERVICE_TOKEN>
 ```
 
-The request contains `senderUserId` and `receiverUserId`. Contact Service
-returns `allowed: true` only if the sender owns a contact linked to the receiver
-and the receiver is currently `ACTIVE` in User Service. This endpoint is
-read-only and must not be published by API Gateway.
+The request contains `senderUserId` and `receiverUserId`. Contact Service loads
+the sender's linked contact, re-resolves its stored phone through User Service,
+and returns `allowed: true` only when the resolved active user ID equals both the
+stored link and requested receiver ID. This makes an old or reassigned phone
+number ineligible before Money Service starts the wallet transaction. This
+endpoint is read-only and must not be published by API Gateway.
+
+The response includes both the decision and its reason:
+
+```json
+{
+  "allowed": false,
+  "reason": "CONTACT_PHONE_MISMATCH"
+}
+```
+
+The reason lets Money Service distinguish a stale contact phone from other
+eligibility failures without exposing contact data.
 
 Contact data must not be used to mutate accounts, wallets, balances, or
 transactions. Transaction Service must not access `SYSTEM.CONTACT` directly;

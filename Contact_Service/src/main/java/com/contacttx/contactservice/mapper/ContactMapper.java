@@ -16,12 +16,14 @@ public class ContactMapper {
             Long ownerUserId,
             Long linkedUserId) {
 
-        return new Contact(
+        Contact contact = new Contact(
                 ownerUserId,
                 linkedUserId,
                 request.getContactName(),
                 toPhoneNumber(request.getContactPhone())
         );
+        contact.setFavorite(request.getFavorite());
+        return contact;
     }
 
     public void updateEntity(

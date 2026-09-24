@@ -69,16 +69,23 @@ This is an internal service-to-service endpoint. It is not a public Contact API,
 must not be routed through API Gateway, and does not accept a user JWT.
 
 It returns `allowed: true` only when the sender owns a registered contact linked
-to the receiver and User Service currently reports that receiver as `ACTIVE`.
-Self-payments, external contacts, missing links, unknown users, and inactive
-users return `allowed: false`. If User Service cannot be reached safely, the
-endpoint returns `503 USER_SERVICE_UNAVAILABLE`.
+to the receiver, the contact's stored phone currently resolves to that same
+receiver user ID, and the resolved user is `ACTIVE`. Self-payments, external
+contacts, missing links, stale or reassigned phone numbers, unknown users, and
+inactive users return `allowed: false`. If User Service cannot be reached safely,
+the endpoint returns `503 USER_SERVICE_UNAVAILABLE`.
 
 ```json
 {
-  "allowed": true
+  "allowed": true,
+  "reason": "ELIGIBLE"
 }
 ```
+
+Denied responses still use HTTP `200` for this internal decision endpoint and
+set `allowed: false`. `reason` is one of `SELF_PAYMENT`, `CONTACT_NOT_FOUND`,
+`CONTACT_PHONE_MISMATCH`, or `RECEIVER_INACTIVE`. Transaction Service converts
+`CONTACT_PHONE_MISMATCH` into a structured public `403` response.
 
 ## Contact response
 
@@ -90,6 +97,7 @@ The public contact representation is:
   "contactName": "Sam Taylor",
   "contactPhone": "9876543210",
   "linkedToRegisteredUser": true,
+  "favorite": false,
   "createdAt": "2026-09-17T10:15:30.123456",
   "updatedAt": "2026-09-17T10:15:30.123456"
 }
@@ -112,7 +120,8 @@ Request:
 {
   "contactName": "Sam Taylor",
   "contactPhone": "9876543210",
-  "linkToRegisteredUser": true
+  "linkToRegisteredUser": true,
+  "favorite": true
 }
 ```
 
@@ -122,6 +131,7 @@ Rules:
 - `contactPhone` is required and must be a JSON string of exactly ten digits.
 - A JSON number is rejected even when it contains ten digits.
 - `linkToRegisteredUser` is required and must be `true` or `false`.
+- `favorite` is optional. It is stored as `false` when omitted or `null`.
 - When `true`, User Service must resolve the phone to an `ACTIVE` user.
 - A resolved user cannot equal the authenticated owner.
 - When `false`, `linked_user_id` is stored as `NULL` and User Service is not
@@ -141,6 +151,7 @@ X-Trace-Id: 31ac7274-1405-40a2-8a0f-8fb505f67dd5
   "contactName": "Sam Taylor",
   "contactPhone": "9876543210",
   "linkedToRegisteredUser": true,
+  "favorite": true,
   "createdAt": "2026-09-17T10:15:30.123456",
   "updatedAt": "2026-09-17T10:15:30.123456"
 }

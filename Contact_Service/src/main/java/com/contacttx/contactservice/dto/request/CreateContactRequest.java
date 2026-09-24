@@ -21,6 +21,8 @@ public class CreateContactRequest {
     @NotNull(message = "linkToRegisteredUser is required")
     private Boolean linkToRegisteredUser;
 
+    private Boolean favorite = false;
+
     public CreateContactRequest() {
     }
 
@@ -28,9 +30,18 @@ public class CreateContactRequest {
             String contactName,
             String contactPhone,
             Boolean linkToRegisteredUser) {
+        this(contactName, contactPhone, linkToRegisteredUser, false);
+    }
+
+    public CreateContactRequest(
+            String contactName,
+            String contactPhone,
+            Boolean linkToRegisteredUser,
+            Boolean favorite) {
         setContactName(contactName);
         this.contactPhone = contactPhone;
         this.linkToRegisteredUser = linkToRegisteredUser;
+        setFavorite(favorite);
     }
 
     public String getContactName() {
@@ -55,5 +66,13 @@ public class CreateContactRequest {
 
     public void setLinkToRegisteredUser(Boolean linkToRegisteredUser) {
         this.linkToRegisteredUser = linkToRegisteredUser;
+    }
+
+    public Boolean getFavorite() {
+        return favorite;
+    }
+
+    public void setFavorite(Boolean favorite) {
+        this.favorite = Boolean.TRUE.equals(favorite);
     }
 }

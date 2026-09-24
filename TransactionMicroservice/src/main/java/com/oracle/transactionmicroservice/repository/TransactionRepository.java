@@ -12,8 +12,9 @@ import java.util.Optional;
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
     //    We use @Query where the rule is more complex or needs to be very explicit.
-//    A transaction is visible only when the current user owns
-//    the source wallet or destination wallet.
+//    A completed transaction is visible to either wallet owner. A failed W2W
+//    attempt is visible only to its source-wallet owner. A2W transactions are
+//    visible to the source-account owner, including failed attempts.
 //    It could technically be expressed with a very long derived method name, such as:
 //    findByTransactionIdAndSourceWallet_UserIdOrTransactionIdAndDestinationWallet_UserId(...)
 //    in that case we might skip the @Query
@@ -21,11 +22,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             SELECT t
             FROM Transaction t
             LEFT JOIN t.sourceWallet sw
+            LEFT JOIN t.sourceAccount sa
             JOIN t.destinationWallet dw
             WHERE t.transactionId = :transactionId
               AND (
                     sw.userId = :userId
-                    OR dw.userId = :userId
+                    OR sa.userId = :userId
+                    OR (
+                        t.status = com.oracle.transactionmicroservice.enums.TransactionStatus.COMPLETED
+                        AND dw.userId = :userId
+                    )
                   )
             """)
     Optional<Transaction> findVisibleTransactionById(
@@ -41,9 +47,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         SELECT t
         FROM Transaction t
         LEFT JOIN t.sourceWallet sw
+        LEFT JOIN t.sourceAccount sa
         JOIN t.destinationWallet dw
         WHERE sw.userId = :userId
-           OR dw.userId = :userId
+           OR sa.userId = :userId
+           OR (
+               t.status = com.oracle.transactionmicroservice.enums.TransactionStatus.COMPLETED
+               AND dw.userId = :userId
+           )
         ORDER BY t.createdAt DESC, t.transactionId DESC
         """)
     Page<Transaction> findAllVisibleTransactions(

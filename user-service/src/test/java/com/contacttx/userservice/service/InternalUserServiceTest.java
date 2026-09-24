@@ -1,6 +1,7 @@
 package com.contacttx.userservice.service;
 
 import com.contacttx.userservice.dto.request.ResolveUserRequest;
+import com.contacttx.userservice.dto.request.DisplayNamesRequest;
 import com.contacttx.userservice.dto.response.InternalUserStatusResponse;
 import com.contacttx.userservice.entity.AppUser;
 import com.contacttx.userservice.entity.UserStatus;
@@ -14,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,6 +68,40 @@ class InternalUserServiceTest {
         assertThrows(UserNotFoundException.class,
                 () -> internalUserService.resolveByMobile(
                         new ResolveUserRequest("9876543210")));
+    }
+
+    @Test
+    void resolvesExistingNonDeletedNamesAndReportsMissingIds() {
+        var alice = projection(7L, "Alice Sharma");
+        var bob = projection(12L, "Bob Tester");
+        when(userRepository.findDisplayNamesByUserIds(
+                List.of(7L, 12L, 25L), UserStatus.DELETED))
+                .thenReturn(List.of(bob, alice));
+
+        var response = internalUserService.resolveDisplayNames(
+                new DisplayNamesRequest(List.of(7L, 12L, 7L, 25L)));
+
+        assertEquals(List.of(7L, 12L), response.users().stream()
+                .map(user -> user.userId()).toList());
+        assertEquals(List.of("Alice Sharma", "Bob Tester"), response.users().stream()
+                .map(user -> user.displayName()).toList());
+        assertEquals(List.of(25L), response.unresolvedUserIds());
+        verify(userRepository).findDisplayNamesByUserIds(
+                List.of(7L, 12L, 25L), UserStatus.DELETED);
+    }
+
+    private AppUserRepository.UserDisplayNameProjection projection(Long userId, String name) {
+        return new AppUserRepository.UserDisplayNameProjection() {
+            @Override
+            public Long getUserId() {
+                return userId;
+            }
+
+            @Override
+            public String getName() {
+                return name;
+            }
+        };
     }
 
     private AppUser user(UserStatus status) {
