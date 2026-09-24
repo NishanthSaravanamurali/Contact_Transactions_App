@@ -25,5 +25,8 @@ public interface ContactRepository extends Repository<Contact, Long> {
             Long contactPhone,
             Long contactId);
 
+    Optional<Contact> findFirstByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
+            Long ownerUserId, Long linkedUserId);
+
     long deleteByContactIdAndOwnerUserId(Long contactId, Long ownerUserId);
 }

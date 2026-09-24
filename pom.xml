@@ -17,5 +17,6 @@
         <module>api-gateway</module>
         <module>TransactionMicroservice</module>
         <module>Contact_Service</module>
+        <module>NotificationService</module>
     </modules>
 </project>

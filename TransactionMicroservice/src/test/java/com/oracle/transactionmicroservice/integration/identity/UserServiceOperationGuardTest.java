@@ -80,6 +80,54 @@ class UserServiceOperationGuardTest {
         assertFalse(actionCalled.get());
     }
 
+
+    @Test
+    void paymentPathPreservesStalePhoneErrorAndNeverRunsAction() {
+        expectActiveUser(42L);
+        expectActiveUser(99L);
+        expectEligibility("{\"allowed\":false,\"reason\":\"CONTACT_PHONE_MISMATCH\",\"senderNameForReceiver\":\"Friend\"}");
+        AtomicBoolean called = new AtomicBoolean();
+        var error = assertThrows(ForbiddenOperationException.class, () ->
+                guard.withPaymentUsers(42L, 99L, name -> { called.set(true); return name; }));
+        assertEquals("CONTACT_PHONE_MISMATCH", error.getErrorCode());
+        assertFalse(called.get());
+    }
+
+    @Test
+    void paymentUsesReceiversSavedName() {
+        expectActiveUser(42L);
+        expectActiveUser(99L);
+        expectEligibility("{\"allowed\":true,\"reason\":\"ELIGIBLE\",\"senderNameForReceiver\":\"College Friend\"}");
+        assertEquals("College Friend", guard.withPaymentUsers(42L, 99L, name -> name));
+    }
+
+    @Test
+    void missingReverseContactFallsBackToRegisteredName() {
+        expectActiveUser(42L);
+        expectActiveUser(99L);
+        expectEligibility("{\"allowed\":true,\"reason\":\"ELIGIBLE\",\"senderNameForReceiver\":null}");
+        assertEquals("Registered Sender", guard.withPaymentUsers(42L, 99L, name -> name));
+    }
+
+    @Test
+    void contactServiceFailureDoesNotRunPayment() {
+        expectActiveUser(42L);
+        expectActiveUser(99L);
+        mockServer.expect(requestTo("http://CONTACT-SERVICE/internal/v1/contacts/payment-eligibility"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
+        AtomicBoolean called = new AtomicBoolean();
+        assertThrows(ForbiddenOperationException.class, () ->
+                guard.withPaymentUsers(42L, 99L, name -> { called.set(true); return name; }));
+        assertFalse(called.get());
+    }
+
+    private void expectEligibility(String json) {
+        mockServer.expect(requestTo("http://CONTACT-SERVICE/internal/v1/contacts/payment-eligibility"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Service-Token", INTERNAL_TOKEN))
+                .andRespond(withSuccess(json, MediaType.APPLICATION_JSON));
+    }
+
     private void expectActiveUser(Long userId) {
         mockServer.expect(requestTo(
                         "http://USER-SERVICE/internal/v1/users/" + userId + "/status"))
@@ -87,8 +135,10 @@ class UserServiceOperationGuardTest {
                 .andExpect(header("X-Internal-Service-Token", INTERNAL_TOKEN))
                 .andRespond(withSuccess("""
                         {
+                          "userId": %d,
+                          "name": "Registered Sender",
                           "status": "ACTIVE"
                         }
-                        """, MediaType.APPLICATION_JSON));
+                        """.formatted(userId), MediaType.APPLICATION_JSON));
     }
 }

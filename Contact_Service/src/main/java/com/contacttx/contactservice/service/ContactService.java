@@ -5,8 +5,8 @@ import com.contacttx.contactservice.client.dto.ResolveUserResponse;
 import com.contacttx.contactservice.dto.request.CreateContactRequest;
 import com.contacttx.contactservice.dto.request.UpdateContactRequest;
 import com.contacttx.contactservice.dto.response.PaymentEligibilityReason;
-import com.contacttx.contactservice.dto.response.PaymentEligibilityResponse;
 import com.contacttx.contactservice.dto.response.ContactResponse;
+import com.contacttx.contactservice.dto.response.PaymentEligibilityResponse;
 import com.contacttx.contactservice.entity.Contact;
 import com.contacttx.contactservice.exception.ContactNotFoundException;
 import com.contacttx.contactservice.exception.DuplicateContactPhoneException;
@@ -139,7 +139,7 @@ public class ContactService {
                 continue;
             }
             if (ACTIVE_STATUS.equals(resolvedUser.get().getStatus())) {
-                return PaymentEligibilityResponse.eligible();
+                return PaymentEligibilityResponse.eligible(senderNameForReceiver(senderUserId, receiverUserId));
             }
             matchingUserIsInactive = true;
         }
@@ -147,6 +147,16 @@ public class ContactService {
         return PaymentEligibilityResponse.denied(matchingUserIsInactive
                 ? PaymentEligibilityReason.RECEIVER_INACTIVE
                 : PaymentEligibilityReason.CONTACT_PHONE_MISMATCH);
+    }
+
+    private String senderNameForReceiver(Long senderUserId, Long receiverUserId) {
+        // Reverse lookup: the receiver's private label for the sender.
+        // A missing reverse contact does not make the payment ineligible.
+        return contactRepository
+                .findFirstByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(receiverUserId, senderUserId)
+                .map(Contact::getContactName)
+                .filter(value -> !value.isBlank())
+                .orElse(null);
     }
 
     private Contact findOwnedContact(Long ownerUserId, Long contactId) {

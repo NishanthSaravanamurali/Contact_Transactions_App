@@ -67,6 +67,6 @@ public class InternalUserService {
     }
 
     private InternalUserStatusResponse toResponse(AppUser user) {
-        return new InternalUserStatusResponse(user.getUserId(), user.getStatus());
+        return new InternalUserStatusResponse(user.getUserId(), user.getStatus(), user.getName());
     }
 }

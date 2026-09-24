@@ -312,10 +312,10 @@ ADD CONSTRAINT uq_wallet_user_id UNIQUE (user_id);
 Run the `ALTER TABLE` only if Oracle metadata confirms that an equivalent unique
 constraint/index does not already exist.
 
-Database/runtime failures are retried three times with a two-second fixed
-backoff. Exhausted failures and malformed events are published to
-`user.lifecycle.v1.DLT`. The Kafka offset advances only after wallet creation
-commits or the record has been successfully recovered to the DLT.
+All processing failures receive two retries with a two-second fixed backoff
+(three attempts total). Exhausted failures are logged and skipped; the offset can
+then advance. A skipped registration event can leave a user without a wallet.
+No automatic recovery is implemented. Payment requests do not create missing wallets.
 
 ## Runtime configuration
 
@@ -336,11 +336,9 @@ EUREKA_URL=http://localhost:8761/eureka/
 USER_SERVICE_ID=USER-SERVICE
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 KAFKA_USER_LIFECYCLE_TOPIC=user.lifecycle.v1
-KAFKA_USER_LIFECYCLE_DLT_TOPIC=user.lifecycle.v1.DLT
 KAFKA_USER_LIFECYCLE_GROUP=transaction-wallet-provisioner
 KAFKA_AUTO_OFFSET_RESET=earliest
 KAFKA_RETRY_INTERVAL_MS=2000
-KAFKA_MAX_RETRIES=3
 ```
 
 Kafka credentials, when required by the deployed cluster, must also be supplied

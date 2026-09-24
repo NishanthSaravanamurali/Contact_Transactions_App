@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 try {
     . (Join-Path $PSScriptRoot 'start-all.ps1') -LoadJobSupportOnly
     $statePath = Join-Path $PSScriptRoot '.backend-runtime.json'
-    $ports = @(8761, 8081, 8082, 8083, 8080)
+    $ports = @(8761, 8081, 8082, 8083, 8084, 8080)
     if (Test-Path -LiteralPath $statePath) {
         $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
         if ($state.Version -ne 1 -or $state.Root -ne $PSScriptRoot -or $state.JobName -notmatch '^Local\\ContactTx-[a-f0-9]{32}$') {
@@ -45,7 +45,7 @@ try {
     if ($occupied.Count) {
         throw "Ports still occupied: $($occupied -join ', '). They may be from the old launcher or another app. No untracked process was stopped."
     }
-    Write-Host 'All five backend ports are free.'
+    Write-Host 'All six backend ports are free. Kafka is managed separately.'
     # A forcibly closed launcher can leave harmless stale state; the next start
     # replaces it under the launcher's mutex. Do not race a new launch to delete it.
 } catch {

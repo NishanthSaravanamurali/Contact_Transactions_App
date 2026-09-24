@@ -26,12 +26,13 @@ class InternalContactControllerTest {
     @Test
     void returnsTheEligibilityDecisionForTheSuppliedUsers() {
         PaymentEligibilityRequest request = new PaymentEligibilityRequest(42L, 99L);
-        PaymentEligibilityResponse expected = PaymentEligibilityResponse.eligible();
+        PaymentEligibilityResponse expected = PaymentEligibilityResponse.eligible("College Friend");
         when(contactService.checkPaymentEligibility(42L, 99L)).thenReturn(expected);
 
         PaymentEligibilityResponse response = internalContactController.paymentEligibility(request);
 
         assertTrue(response.isAllowed());
+        org.junit.jupiter.api.Assertions.assertEquals("College Friend", response.getSenderNameForReceiver());
         org.junit.jupiter.api.Assertions.assertEquals(
                 PaymentEligibilityReason.ELIGIBLE,
                 response.getReason());

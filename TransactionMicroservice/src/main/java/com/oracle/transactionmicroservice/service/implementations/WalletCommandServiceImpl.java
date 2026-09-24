@@ -19,6 +19,7 @@ import com.oracle.transactionmicroservice.repository.WalletRepository;
 import com.oracle.transactionmicroservice.service.abstractions.WalletCommandService;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
+import com.oracle.transactionmicroservice.messaging.PaymentOutboxEventFactory;
 
 @Service
 public class WalletCommandServiceImpl implements WalletCommandService {
@@ -27,17 +28,20 @@ public class WalletCommandServiceImpl implements WalletCommandService {
     private final TransactionRepository transactionRepository;
     private final MoneyPolicy moneyPolicy;
     private final GuardedLocalTransaction localTransaction;
+    private final PaymentOutboxEventFactory paymentOutbox;
 
     public WalletCommandServiceImpl(AccountRepository accountRepository,
                                     WalletRepository walletRepository,
                                     TransactionRepository transactionRepository,
                                     MoneyPolicy moneyPolicy,
-                                    GuardedLocalTransaction localTransaction) {
+                                    GuardedLocalTransaction localTransaction,
+                                    PaymentOutboxEventFactory paymentOutbox) {
         this.accountRepository = accountRepository;
         this.walletRepository = walletRepository;
         this.transactionRepository = transactionRepository;
         this.moneyPolicy = moneyPolicy;
         this.localTransaction = localTransaction;
+        this.paymentOutbox = paymentOutbox;
     }
 
     @Override
@@ -82,7 +86,7 @@ public class WalletCommandServiceImpl implements WalletCommandService {
         }
         moneyPolicy.validateAmount(request.amount());
         BigDecimal amount = request.amount().setScale(2);
-        return localTransaction.execute(currentUserId, request.receiverUserId(), () -> {
+        return localTransaction.executePayment(currentUserId, request.receiverUserId(), senderName -> {
             // Separate single-row queries make the lock acquisition order explicit.
             Long firstUserId = Math.min(currentUserId, request.receiverUserId());
             Long secondUserId = Math.max(currentUserId, request.receiverUserId());
@@ -98,7 +102,9 @@ public class WalletCommandServiceImpl implements WalletCommandService {
             validateCredit(destination, amount);
             source.debit(amount);
             destination.credit(amount);
-            return completed(transaction);
+            TransactionResponse response = completed(transaction);
+            paymentOutbox.record(transaction, currentUserId, request.receiverUserId(), senderName);
+            return response;
         });
     }
     @Transactional

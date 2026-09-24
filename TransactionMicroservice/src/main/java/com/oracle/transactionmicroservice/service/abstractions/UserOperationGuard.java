@@ -1,6 +1,7 @@
 package com.oracle.transactionmicroservice.service.abstractions;
 
 import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * Required integration boundary; implement through the agreed Identity/Contact
@@ -19,6 +20,14 @@ import java.util.function.Supplier;
  * services intentionally cannot be wired.
  */
 public interface UserOperationGuard {
+    /**
+     * Pass the receiver-specific sender label to the payment, before starting its
+     * local transaction. Implementations must not invent a name on lookup failure.
+     */
+    default <T> T withPaymentUsers(Long senderUserId, Long receiverUserId, Function<String, T> action) {
+        throw new IllegalStateException("Payment display-name resolution is not configured.");
+    }
+
     <T> T withActiveUsers(Long currentUserId, Long recipientUserId, Supplier<T> action);
 }
 

@@ -3,8 +3,6 @@ package com.oracle.notificationservice;
 import com.oracle.notificationservice.dto.event.PaymentCompletedEvent;
 import com.oracle.notificationservice.realtime.NotificationStreamService;
 import com.oracle.notificationservice.service.abstractions.NotificationCommandService;
-import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,12 +10,9 @@ import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
-import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.*;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import java.time.Duration;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.*;
@@ -30,7 +25,7 @@ import static org.mockito.Mockito.*;
 })
 @ActiveProfiles("test")
 @EmbeddedKafka(partitions = 1,
-        topics = {"payments.completed.v1", "payments.completed.v1.notification-dlt"},
+        topics = {"payments.completed.v1"},
         bootstrapServersProperty = "spring.kafka.bootstrap-servers")
 @DirtiesContext
 class KafkaDeliveryTest {
@@ -51,13 +46,6 @@ class KafkaDeliveryTest {
                 """.formatted(id);
     }
 
-    private Consumer<String, String> dltConsumer() {
-        var properties = KafkaTestUtils.consumerProps("test-dlt-" + UUID.randomUUID(), "false", broker);
-        var consumer = new DefaultKafkaConsumerFactory<>(properties,
-                new StringDeserializer(), new StringDeserializer()).createConsumer();
-        broker.consumeFromAnEmbeddedTopic(consumer, "payments.completed.v1.notification-dlt");
-        return consumer;
-    }
 
     @Test
     void transientFailureIsRetriedAndThenProcessed() throws Exception {
@@ -72,14 +60,19 @@ class KafkaDeliveryTest {
     }
 
     @Test
-    void malformedJsonIsRetainedInDeadLetterTopic() throws Exception {
-        try (var consumer = dltConsumer()) {
-            template.send("payments.completed.v1", "2", "{broken").get(10, TimeUnit.SECONDS);
-            var record = KafkaTestUtils.getSingleRecord(consumer,
-                    "payments.completed.v1.notification-dlt", Duration.ofSeconds(15));
-            assertThat(record.value()).isEqualTo("{broken");
-            assertThat(record.key()).isEqualTo("2");
-            verifyNoInteractions(commands);
-        }
+    void malformedJsonIsSkippedAndNextEventIsProcessed() throws Exception {
+        template.send("payments.completed.v1", "2", "{broken").get(10, TimeUnit.SECONDS);
+        template.send("payments.completed.v1", "2", payload(702)).get(10, TimeUnit.SECONDS);
+        verify(commands, timeout(15000)).createFromPayment(argThat(event -> event.transactionId() == 702L));
+    }
+
+    @Test
+    void exhaustedFailureIsSkippedAndNextEventIsProcessed() throws Exception {
+        doThrow(new TransientDataAccessResourceException("test outage")).when(commands)
+                .createFromPayment(argThat(event -> event.transactionId() == 703L));
+        template.send("payments.completed.v1", "2", payload(703)).get(10, TimeUnit.SECONDS);
+        template.send("payments.completed.v1", "2", payload(704)).get(10, TimeUnit.SECONDS);
+        verify(commands, timeout(15000)).createFromPayment(argThat(event -> event.transactionId() == 704L));
+        verify(commands, times(3)).createFromPayment(argThat(event -> event.transactionId() == 703L));
     }
 }

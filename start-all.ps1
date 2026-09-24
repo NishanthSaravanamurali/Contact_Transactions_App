@@ -194,6 +194,7 @@ $services = @(
     @{ Module = 'user-service'; Port = 8081; App = 'USER-SERVICE' },
     @{ Module = 'Contact_Service'; Port = 8082; App = 'CONTACT-SERVICE' },
     @{ Module = 'TransactionMicroservice'; Port = 8083; App = 'TRANSACTIONMICROSERVICE' },
+    @{ Module = 'NotificationService'; Port = 8084; App = 'NOTIFICATION-SERVICE' },
     @{ Module = 'api-gateway'; Port = 8080; App = 'API-GATEWAY' }
 )
 $started = @()
@@ -283,6 +284,17 @@ try {
     Set-LaunchEnvironment 'USER_SERVICE_INTERNAL_TOKEN' $env:INTERNAL_SERVICE_TOKEN
     Set-LaunchEnvironment 'EUREKA_URL' 'http://localhost:8761/eureka/'
 
+    # Use the shared schema only when no notification-specific database is set.
+    $notificationDb = @('NOTIFICATION_DB_URL', 'NOTIFICATION_DB_USERNAME', 'NOTIFICATION_DB_PASSWORD')
+    $configuredDb = @($notificationDb | Where-Object { -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) })
+    if ($configuredDb.Count -eq 0) {
+        foreach ($name in $notificationDb) {
+            Set-LaunchEnvironment $name ([Environment]::GetEnvironmentVariable($name.Substring('NOTIFICATION_'.Length)))
+        }
+    } elseif ($configuredDb.Count -ne $notificationDb.Count) {
+        throw 'Set all three NOTIFICATION_DB_URL, NOTIFICATION_DB_USERNAME and NOTIFICATION_DB_PASSWORD, or leave all three unset to use DB_*.'
+    }
+
     $java = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin/java.exe' } else { (Get-Command java.exe -ErrorAction Stop).Source }
     if (-not (Test-Path -LiteralPath $java)) { throw 'Java was not found. Set JAVA_HOME to your JDK 24 installation.' }
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'mvnw.cmd'))) { throw 'mvnw.cmd is missing.' }
@@ -309,6 +321,7 @@ try {
     New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
     Write-Host "Logs: $logDirectory"
     Write-Host 'Close this window, press Ctrl+C, or run stop-all.bat to stop this backend.'
+    Write-Host 'Kafka must already be running with the required topics. It is managed separately; see docs/run-backend-and-kafka.md.'
     foreach ($service in $services) {
         if ($stopSignal.WaitOne(0)) { throw 'Stop requested.' }
         Write-Host "Starting $($service.Module) on port $($service.Port)..."
@@ -316,9 +329,14 @@ try {
         $escapedRoot = $PSScriptRoot.Replace("'", "''")
         $stripSecrets = if ($module -eq 'discovery-server' -or $module -eq 'api-gateway') {
             'Remove-Item Env:DB_URL,Env:DB_USERNAME,Env:DB_PASSWORD,Env:JWT_PRIVATE_KEY,Env:INTERNAL_SERVICE_TOKEN,Env:USER_SERVICE_INTERNAL_TOKEN -ErrorAction SilentlyContinue'
+        } elseif ($module -eq 'NotificationService') {
+            'Remove-Item Env:DB_URL,Env:DB_USERNAME,Env:DB_PASSWORD,Env:JWT_PRIVATE_KEY,Env:INTERNAL_SERVICE_TOKEN,Env:USER_SERVICE_INTERNAL_TOKEN -ErrorAction SilentlyContinue'
         } elseif ($module -ne 'user-service') {
             'Remove-Item Env:JWT_PRIVATE_KEY -ErrorAction SilentlyContinue'
         } else { '' }
+        if ($module -ne 'NotificationService') {
+            $stripSecrets += '; Remove-Item Env:NOTIFICATION_DB_URL,Env:NOTIFICATION_DB_USERNAME,Env:NOTIFICATION_DB_PASSWORD -ErrorAction SilentlyContinue'
+        }
         $outputPath = Join-Path $logDirectory "$module.log"
         $errorPath = Join-Path $logDirectory "$module.error.log"
         $command = "Set-Location -LiteralPath '$escapedRoot'; $stripSecrets; & '.\mvnw.cmd' -B -pl '$module' spring-boot:run '-Dspring-boot.run.arguments=--server.port=$($service.Port)'; exit `$LASTEXITCODE"
@@ -340,7 +358,7 @@ try {
         }
         Write-Host "$module is ready."
     }
-    Write-Host 'All five services are ready. Gateway: http://localhost:8080 | Eureka: http://localhost:8761'
+    Write-Host 'All six services are ready. Gateway: http://localhost:8080 | Eureka: http://localhost:8761 | Notifications: http://localhost:8084'
     while ($true) {
         if ($stopSignal.WaitOne(0)) { throw 'Stop requested.' }
         foreach ($entry in $started) {
@@ -368,7 +386,7 @@ try {
             } while ((Get-Date) -lt $shutdownDeadline)
             if ($remainingPorts.Count) {
                 Write-Warning "Still listening on ports: $($remainingPorts -join ', '). These may belong to other processes; no unrelated process was stopped."
-            } else { Write-Host 'Backend stopped; all five service ports are free.' }
+            } else { Write-Host 'Backend stopped; all six service ports are free. Kafka is managed separately.' }
             if ((Test-Path -LiteralPath $statePath) -and ((Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json).JobName -eq $state.JobName)) {
                 Remove-Item -LiteralPath $statePath -Force
             }

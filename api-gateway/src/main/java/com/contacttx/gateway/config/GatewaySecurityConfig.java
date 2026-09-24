@@ -55,6 +55,7 @@ public class GatewaySecurityConfig {
                         .pathMatchers("/api/v1/users/**").authenticated()
                         .pathMatchers("/api/v1/money/**").authenticated()
                         .pathMatchers("/api/v1/contacts/**").authenticated()
+                        .pathMatchers("/api/v1/notifications", "/api/v1/notifications/**").authenticated()
                         .anyExchange().denyAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .authenticationEntryPoint(errorHandler)

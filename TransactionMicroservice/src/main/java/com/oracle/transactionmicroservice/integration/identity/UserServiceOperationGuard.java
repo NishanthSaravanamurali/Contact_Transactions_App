@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.util.function.Supplier;
+import java.util.function.Function;
 
 @Component
 public class UserServiceOperationGuard implements UserOperationGuard {
@@ -69,7 +70,20 @@ public class UserServiceOperationGuard implements UserOperationGuard {
         return action.get();
     }
 
-    private void requireActiveUser(Long userId) {
+    @Override
+    public <T> T withPaymentUsers(Long senderUserId, Long receiverUserId, Function<String, T> action) {
+        UserStatusResponse sender = requireActiveUser(senderUserId);
+        requireActiveUser(receiverUserId);
+        PaymentEligibilityResponse eligibility = requireReceiverIsContact(senderUserId, receiverUserId);
+        String contactName = eligibility.senderNameForReceiver();
+        String selectedName = contactName != null && !contactName.isBlank() ? contactName : sender.name();
+        if (selectedName == null || selectedName.isBlank() || selectedName.strip().length() > 100) {
+            throw new ForbiddenOperationException("Unable to resolve the sender's display name.");
+        }
+        return action.apply(selectedName.strip());
+    }
+
+    private UserStatusResponse requireActiveUser(Long userId) {
         if (userId == null || userId <= 0) {
             throw new ForbiddenOperationException("User ID is invalid.");
         }
@@ -81,9 +95,10 @@ public class UserServiceOperationGuard implements UserOperationGuard {
                     .retrieve()
                     .body(UserStatusResponse.class);
 
-            if (response == null || !"ACTIVE".equalsIgnoreCase(response.status())) {
+            if (response == null || !userId.equals(response.userId()) || !"ACTIVE".equalsIgnoreCase(response.status())) {
                 throw new ForbiddenOperationException("User is not active.");
             }
+            return response;
         } catch (RestClientException exception) {
             throw new ForbiddenOperationException(
                     "Unable to verify the user's active status."
@@ -91,7 +106,7 @@ public class UserServiceOperationGuard implements UserOperationGuard {
         }
     }
 
-    private void requireReceiverIsContact(
+    private PaymentEligibilityResponse requireReceiverIsContact(
             Long senderUserId,
             Long receiverUserId
     ) {
@@ -120,6 +135,7 @@ public class UserServiceOperationGuard implements UserOperationGuard {
                         "Receiver is not an eligible contact."
                 );
             }
+            return response;
         } catch (RestClientException exception) {
             throw new ForbiddenOperationException(
                     "Unable to verify the receiver's contact eligibility."
@@ -127,7 +143,7 @@ public class UserServiceOperationGuard implements UserOperationGuard {
         }
     }
 
-    private record UserStatusResponse(String status) {
+    private record UserStatusResponse(Long userId, String status, String name) {
     }
 
     private record PaymentEligibilityRequest(
@@ -136,6 +152,6 @@ public class UserServiceOperationGuard implements UserOperationGuard {
     ) {
     }
 
-    private record PaymentEligibilityResponse(boolean allowed, String reason) {
+    private record PaymentEligibilityResponse(boolean allowed, String reason, String senderNameForReceiver) {
     }
 }

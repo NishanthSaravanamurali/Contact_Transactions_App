@@ -67,6 +67,51 @@ class ContactServiceTest {
     }
 
     @Test
+    void notificationNameComesFromReceiversContactsNotSendersContacts() {
+        when(contactRepository.findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(1L, 2L))
+                .thenReturn(List.of(new Contact(1L, 2L, "Receiver", 9876543210L)));
+        when(userServiceClient.resolveUser("9876543210"))
+                .thenReturn(Optional.of(new ResolveUserResponse(2L, "ACTIVE")));
+        when(contactRepository.findFirstByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(2L, 1L))
+                .thenReturn(Optional.of(new Contact(2L, 1L, "College Friend", 9876543210L)));
+        var response = contactService.checkPaymentEligibility(1L, 2L);
+        assertTrue(response.isAllowed());
+        assertEquals("College Friend", response.getSenderNameForReceiver());
+        assertEquals(PaymentEligibilityReason.ELIGIBLE, response.getReason());
+        verify(contactRepository).findFirstByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(2L, 1L);
+    }
+
+    @Test
+    void missingReverseContactStillAllowsPaymentAndRequestsNameFallback() {
+        when(contactRepository.findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(1L, 2L))
+                .thenReturn(List.of(new Contact(1L, 2L, "Receiver", 9876543210L)));
+        when(userServiceClient.resolveUser("9876543210"))
+                .thenReturn(Optional.of(new ResolveUserResponse(2L, "ACTIVE")));
+        var response = contactService.checkPaymentEligibility(1L, 2L);
+        assertTrue(response.isAllowed());
+        assertNull(response.getSenderNameForReceiver());
+    }
+
+    @Test
+    void ineligiblePaymentDoesNotRevealReverseContactName() {
+        var response = contactService.checkPaymentEligibility(1L, 2L);
+        assertFalse(response.isAllowed());
+        assertNull(response.getSenderNameForReceiver());
+        verify(contactRepository, never()).findFirstByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(2L, 1L);
+    }
+
+    @Test
+    void reverseContactDatabaseFailureDoesNotBecomeMissingContact() {
+        when(contactRepository.findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(1L, 2L))
+                .thenReturn(List.of(new Contact(1L, 2L, "Receiver", 9876543210L)));
+        when(userServiceClient.resolveUser("9876543210"))
+                .thenReturn(Optional.of(new ResolveUserResponse(2L, "ACTIVE")));
+        when(contactRepository.findFirstByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(2L, 1L))
+                .thenThrow(new IllegalStateException("database unavailable"));
+        assertThrows(IllegalStateException.class, () -> contactService.checkPaymentEligibility(1L, 2L));
+    }
+
+    @Test
     void createExternalContactDoesNotCallUserService() {
         CreateContactRequest request = new CreateContactRequest(
                 "Sam Taylor",

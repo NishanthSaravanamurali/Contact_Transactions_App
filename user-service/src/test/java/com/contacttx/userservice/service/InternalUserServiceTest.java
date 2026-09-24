@@ -44,6 +44,7 @@ class InternalUserServiceTest {
         InternalUserStatusResponse response = internalUserService.getStatus(42L);
 
         assertEquals(42L, response.getUserId());
+        assertEquals("Alex Johnson", response.getName());
         assertEquals(UserStatus.INACTIVE, response.getStatus());
     }
 

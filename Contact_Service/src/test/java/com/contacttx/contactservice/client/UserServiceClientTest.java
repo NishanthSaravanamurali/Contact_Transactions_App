@@ -53,6 +53,7 @@ class UserServiceClientTest {
                         """
                         {
                           "userId": 101,
+                          "name": "Registered Name",
                           "status": "ACTIVE"
                         }
                         """,
@@ -84,6 +85,7 @@ class UserServiceClientTest {
                         """
                         {
                           "userId": 101,
+                          "name": "Registered Name",
                           "status": "ACTIVE"
                         }
                         """,

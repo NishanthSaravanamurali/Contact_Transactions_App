@@ -9,7 +9,7 @@ consumes Kafka events, and exposes authenticated REST and SSE endpoints.
 - Oracle notifications table mapping; no schema creation or data migration at runtime.
 - Paginated All, Unread, and Read views; unread count; mark-one/all-read.
 - RSA JWT verification and receiver ownership checks on every user operation.
-- Kafka consumption, transaction-ID deduplication, bounded retries and dead-letter publishing.
+- Kafka consumption, transaction-ID deduplication, three processing attempts followed by logging and skipping.
 - Best-effort live SSE delivery after notification/read-state database commits.
 - Isolated tests using H2, generated test RSA keys and an embedded Kafka broker.
 
@@ -44,11 +44,10 @@ Kafka bootstrap server default: localhost:9092.
 Topic names (overridable by environment):
 
 - payments.completed.v1
-- payments.completed.v1.notification-dlt
 
 Provision these topics with appropriate partitions, retention, replication and ACLs.
 The payment producer needs write access only to the payment topic; this service
-needs read/group access there and write access to its dead-letter topic. Configure
+needs read/group access there. Configure
 Kafka TLS/SASL through Spring Kafka properties outside local development.
 Kafka is a separate process; the Maven dependency does not start a broker.
 
@@ -101,14 +100,12 @@ createdAt is when this service stores the notification, not payment completion t
 No cross-service JPA relationships or database joins are used.
 
 The consumer commits a successful record's offset only after database commit.
-Database failures get two retries, one second apart. Malformed/invalid events go
-directly to the DLT; exhausted transient failures also go there. DLT send failures
-are propagated so the original record is not acknowledged as recovered. Monitor
-the DLT and replay corrected/transiently failed records into the payment topic after
-fixing the cause; transaction-ID deduplication makes repeated valid deliveries safe.
-Do not blindly replay invalid records.
+All processing failures get two retries, one second apart (three attempts total).
+After exhaustion, log the topic/partition/offset and exception type and skip the event.
+No automatic recovery or replay is implemented; a skipped event can leave a missing
+notification. The payment remains successful. Kafka records remain subject to retention.
 
-This is at-least-once event handling with database deduplication, not distributed
+Successful processing uses database deduplication, not distributed
 exactly-once delivery. Kafka producer idempotence alone does not close the
 transaction database-to-Kafka publication gap: that still requires a transaction-side outbox.
 

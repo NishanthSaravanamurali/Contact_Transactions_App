@@ -85,7 +85,8 @@ class WalletProvisioningTransactionTest {
                 repository,
                 mock(TransactionRepository.class),
                 new MoneyPolicy(),
-                mock(GuardedLocalTransaction.class));
+                mock(GuardedLocalTransaction.class),
+                mock(PaymentOutboxEventFactory.class));
 
         ProxyFactory proxyFactory = new ProxyFactory(target);
         TransactionInterceptor interceptor = new TransactionInterceptor();

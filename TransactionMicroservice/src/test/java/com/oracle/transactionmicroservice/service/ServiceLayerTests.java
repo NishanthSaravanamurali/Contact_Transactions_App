@@ -33,6 +33,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.Function;
+import com.oracle.transactionmicroservice.messaging.PaymentOutboxEventFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -47,15 +49,21 @@ class ServiceLayerTests {
     private GuardedLocalTransaction localTransaction;
     private WalletCommandServiceImpl service;
     private boolean guardHeld;
+    private PaymentOutboxEventFactory outbox;
 
     @BeforeEach
     void setUp() {
+        outbox = mock(PaymentOutboxEventFactory.class);
         accounts = mock(AccountRepository.class);
         wallets = mock(WalletRepository.class);
         transactions = mock(TransactionRepository.class);
         displayNames = mock(UserDisplayNameResolver.class);
         transactionManager = new TrackingTransactionManager();
         UserOperationGuard guard = new UserOperationGuard() {
+            @Override
+            public <T> T withPaymentUsers(Long sender, Long receiver, Function<String, T> action) {
+                return withActiveUsers(sender, receiver, () -> action.apply("Saved Sender"));
+            }
             @Override
             public <T> T withActiveUsers(Long current, Long recipient, Supplier<T> action) {
                 guardHeld = true;
@@ -68,7 +76,7 @@ class ServiceLayerTests {
         };
         localTransaction = new GuardedLocalTransaction(guard, transactionManager);
         service = new WalletCommandServiceImpl(
-                accounts, wallets, transactions, new MoneyPolicy(), localTransaction);
+                accounts, wallets, transactions, new MoneyPolicy(), localTransaction, outbox);
     }
 
     @Test
@@ -275,6 +283,32 @@ class ServiceLayerTests {
         } finally {
             TransactionSynchronizationManager.setActualTransactionActive(false);
         }
+    }
+
+    @Test
+    void paymentOutboxIsWrittenBeforeCommitAndFailureRollsBack() {
+        when(wallets.findByUserIdForUpdate(1L)).thenReturn(Optional.of(wallet(1L, "100.00")));
+        when(wallets.findByUserIdForUpdate(2L)).thenReturn(Optional.of(wallet(2L, "0.00")));
+        recordTransactions();
+        doAnswer(invocation -> {
+            assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
+            assertEquals(0, transactionManager.commits);
+            throw new IllegalStateException("outbox unavailable");
+        }).when(outbox).record(any(), eq(1L), eq(2L), eq("Saved Sender"));
+        assertThrows(IllegalStateException.class,
+                () -> service.makePayment(1L, new MakePaymentRequest(2L, money("10.00"))));
+        assertEquals(1, transactionManager.rollbacks);
+        assertEquals(0, transactionManager.commits);
+    }
+
+    @Test
+    void failedPaymentDoesNotCreateAnOutboxEvent() {
+        when(wallets.findByUserIdForUpdate(1L)).thenReturn(Optional.of(wallet(1L, "1.00")));
+        when(wallets.findByUserIdForUpdate(2L)).thenReturn(Optional.of(wallet(2L, "0.00")));
+        recordTransactions();
+        assertEquals(TransactionStatus.FAILED,
+                service.makePayment(1L, new MakePaymentRequest(2L, money("10.00"))).status());
+        verifyNoInteractions(outbox);
     }
 
     private void recordTransactions() {

@@ -7,6 +7,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import java.util.function.Supplier;
+import java.util.function.Function;
 
 @Component
 public class GuardedLocalTransaction {
@@ -18,6 +19,14 @@ public class GuardedLocalTransaction {
         this.userOperationGuard = userOperationGuard;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
+    }
+
+    public <T> T executePayment(Long senderUserId, Long receiverUserId, Function<String, T> operation) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Money commands must start outside an existing transaction.");
+        }
+        return userOperationGuard.withPaymentUsers(senderUserId, receiverUserId,
+                name -> transactionTemplate.execute(status -> operation.apply(name)));
     }
 
     public <T> T execute(Long currentUserId, Long recipientUserId, Supplier<T> operation) {

@@ -1,4 +1,4 @@
-package com.oracle.transactionmicroservice.config;
+package com.oracle.notificationservice.config;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -20,7 +20,7 @@ class KafkaConsumerConfigTest {
     }
 
     private void assertThreeAttempts(RuntimeException failure) {
-        DefaultErrorHandler handler = new KafkaConsumerConfig().userLifecycleErrorHandler(0L);
+        DefaultErrorHandler handler = new KafkaConsumerConfig().kafkaErrorHandler();
         var record = new ConsumerRecord<>("test-events", 0, 0L, "41", "invalid");
         var consumer = mock(Consumer.class);
         var container = mock(MessageListenerContainer.class);
