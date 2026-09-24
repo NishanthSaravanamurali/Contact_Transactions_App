@@ -85,14 +85,38 @@ class ContactRepositoryOracleTest {
         ));
         entityManager.flush();
 
-        assertThat(contactRepository
-                .findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
-                        OWNER_ID, linkedUserId))
-                .hasSize(1);
-        assertThat(contactRepository
-                .findAllByOwnerUserIdAndLinkedUserIdOrderByContactIdAsc(
-                        OTHER_OWNER_ID, linkedUserId))
-                .isEmpty();
+        assertThat(contactRepository.existsByOwnerUserIdAndLinkedUserId(OWNER_ID, linkedUserId))
+                .isTrue();
+        assertThat(contactRepository.existsByOwnerUserIdAndLinkedUserId(OTHER_OWNER_ID, linkedUserId))
+                .isFalse();
+    }
+
+    @Test
+    void scopesPhoneDuplicateChecksToTheContactOwner() {
+        Long contactPhone = 9_876_543_214L;
+        Contact ownersContact = contactRepository.save(new Contact(
+                OWNER_ID,
+                null,
+                "Owner Contact",
+                contactPhone
+        ));
+        contactRepository.save(new Contact(
+                OTHER_OWNER_ID,
+                null,
+                "Other Owner Contact",
+                contactPhone
+        ));
+        entityManager.flush();
+
+        assertThat(contactRepository.existsByOwnerUserIdAndContactPhone(OWNER_ID, contactPhone))
+                .isTrue();
+        assertThat(contactRepository.existsByOwnerUserIdAndContactPhone(OTHER_OWNER_ID, contactPhone))
+                .isTrue();
+        assertThat(contactRepository.existsByOwnerUserIdAndContactPhoneAndContactIdNot(
+                OWNER_ID,
+                contactPhone,
+                ownersContact.getContactId()))
+                .isFalse();
     }
 
     @Test

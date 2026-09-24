@@ -9,19 +9,23 @@ import org.springframework.stereotype.Component;
 @Component
 public class ContactMapper {
 
-    private static final String TEN_DIGIT_PHONE_PATTERN = "[0-9]{10}";
+    private static final String TEN_DIGIT_PHONE_PATTERN = "[6-9][0-9]{9}";
 
     public Contact toEntity(
             CreateContactRequest request,
             Long ownerUserId,
             Long linkedUserId) {
 
-        return new Contact(
+        Contact contact = new Contact(
                 ownerUserId,
                 linkedUserId,
                 request.getContactName(),
                 toPhoneNumber(request.getContactPhone())
         );
+        if (request.getFavorite() != null) {
+            contact.setFavorite(request.getFavorite());
+        }
+        return contact;
     }
 
     public void updateEntity(
@@ -38,7 +42,7 @@ public class ContactMapper {
     }
 
     public ContactResponse toResponse(Contact contact) {
-        return new ContactResponse(
+        ContactResponse response = new ContactResponse(
                 contact.getContactId(),
                 contact.getContactName(),
                 String.valueOf(contact.getContactPhone()),
@@ -48,6 +52,9 @@ public class ContactMapper {
                 contact.getCreatedAt(),
                 contact.getUpdatedAt()
         );
+        // The authenticated owner's frontend needs this ID for makePayment.
+        response.setLinkedUserId(contact.getLinkedUserId());
+        return response;
     }
 
     private Long toPhoneNumber(String contactPhone) {
