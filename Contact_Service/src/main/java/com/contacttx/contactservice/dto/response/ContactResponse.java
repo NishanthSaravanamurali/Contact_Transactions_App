@@ -7,9 +7,9 @@ public class ContactResponse {
     private Long contactId;
     private String contactName;
     private String contactPhone;
-    private Long linkedUserId;
     private boolean linkedToRegisteredUser;
     private boolean favorite;
+    private Long linkedUserId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
