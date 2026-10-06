@@ -1,0 +1,69 @@
+Acccounts
+---------------
+
+accounts/addAccount --> a random balance is generated
+
+accounts/getBalance 
+
+accounts/getAccounts
+
+
+
+
+Wallet
+---------------
+wallet/addFunds(body must have accid,amount)
+	-first check the balance so that the amount is less than balance.
+	- begin transaction
+		- using the userId in token and the account id, get the 			  account.
+		- reduce amount from acc and add into wallet.
+		- if failed, rollback transaction else commit and  			  create new transaction record.
+
+wallet/makePayment (body must have sender and receiver userId,amount)
+	-first check the balance so that the amount is less than balance in 	 sender wallet.
+	- begin transaction
+		- using the userId in token, get the senders walletid.
+		- using the receivers user id in the body, retrive receiver 		  wallet id.
+		- reduce amount from sender wallet and add into receiver 		  wallet.
+		- if failed, rollback transaction else commit and  			  create new transaction record.
+	
+
+wallet/getBalance
+
+
+
+transaction
+-----------------
+
+transaction/getAll -> return all details inc id
+
+transacttion/getBasedOnConditions (body filter date/amount range/ src acc)
+
+transaction/get/{id}
+
+
+
+
+
+
+
+A few contract decisions should be fixed now:
+addAccount:
+  User ID comes from JWT.
+  No userId in the request body.
+  Service generates opening balance.
+
+addFunds:
+  Request body: accountId, amount
+  User ID comes from JWT.
+  Destination wallet is the current user's wallet.
+  Transaction type: A2W.
+
+makePayment:
+  Request body: receiverUserId, amount
+  Do not accept senderUserId in the body.
+  Sender ID comes from JWT.
+  Transaction type: W2W.
+
+getAll / get/{id}:
+  Return only transactions visible to the authenticated user.

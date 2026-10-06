@@ -1,0 +1,11 @@
+.m2/
+**/target/
+**/.idea/
+*.iml
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+logs/
+.backend-runtime.json*
